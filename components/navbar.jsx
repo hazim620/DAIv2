@@ -14,12 +14,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, LogOut, Settings } from 'lucide-react'
+import { User, LogOut, Settings, BookOpen, Shield } from 'lucide-react'
 
 export function Navbar() {
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { t } = useLanguage()
+  const { locale, t } = useLanguage()
 
   const handleLogout = async () => {
     await logout()
@@ -65,6 +65,18 @@ export function Navbar() {
                     <User className="mr-2 h-4 w-4" />
                     {t('myCourses')}
                   </DropdownMenuItem>
+                  {(user.role === 'instructor' || user.role === 'admin') && (
+                    <DropdownMenuItem onClick={() => router.push('/instructor')}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      {locale === 'ar' ? 'لوحة المدرب' : 'Instructor Dashboard'}
+                    </DropdownMenuItem>
+                  )}
+                  {user.role === 'admin' && (
+                    <DropdownMenuItem onClick={() => router.push('/admin')}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      {locale === 'ar' ? 'لوحة المدير' : 'Admin Panel'}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => router.push('/profile')}>
                     <Settings className="mr-2 h-4 w-4" />
                     {t('profile') || 'Profile'}

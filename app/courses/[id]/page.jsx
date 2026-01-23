@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
-import { PlayCircle, Lock, CheckCircle, Clock } from 'lucide-react'
+import { PlayCircle, Lock, CheckCircle, Clock, Star, HelpCircle, MessageSquare } from 'lucide-react'
+import { CourseReviews } from '@/components/course-reviews'
+import { CourseQA } from '@/components/course-qa'
+import { CourseDiscussions } from '@/components/course-discussions'
 
 export default function CourseDetailPage() {
   const params = useParams()
@@ -20,6 +23,7 @@ export default function CourseDetailPage() {
   const [enrollment, setEnrollment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [enrolling, setEnrolling] = useState(false)
+  const [activeTab, setActiveTab] = useState('content')
 
   useEffect(() => {
     fetchCourse()
@@ -145,6 +149,7 @@ export default function CourseDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Course Header - Always Visible */}
               <Card>
                 <div className="relative h-64 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                   <PlayCircle className="h-24 w-24 text-primary/50" />
@@ -172,7 +177,57 @@ export default function CourseDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Course Sections */}
+              {/* Tabs */}
+              <div className="border-b">
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setActiveTab('content')}
+                    className={`pb-4 px-4 font-medium transition-colors ${
+                      activeTab === 'content'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {locale === 'ar' ? 'المحتوى' : 'Content'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('reviews')}
+                    className={`pb-4 px-4 font-medium transition-colors flex items-center gap-2 ${
+                      activeTab === 'reviews'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Star className="h-4 w-4" />
+                    {locale === 'ar' ? 'التقييمات' : 'Reviews'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('qa')}
+                    className={`pb-4 px-4 font-medium transition-colors flex items-center gap-2 ${
+                      activeTab === 'qa'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    {locale === 'ar' ? 'الأسئلة والأجوبة' : 'Q&A'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('discussions')}
+                    className={`pb-4 px-4 font-medium transition-colors flex items-center gap-2 ${
+                      activeTab === 'discussions'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {locale === 'ar' ? 'المناقشات' : 'Discussions'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'content' && (
               <Card>
                 <CardHeader>
                   <CardTitle>{t('sections')}</CardTitle>
@@ -226,6 +281,19 @@ export default function CourseDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+              )}
+
+              {activeTab === 'reviews' && (
+                <CourseReviews courseId={courseId} />
+              )}
+
+              {activeTab === 'qa' && (
+                <CourseQA courseId={courseId} />
+              )}
+
+              {activeTab === 'discussions' && (
+                <CourseDiscussions courseId={courseId} />
+              )}
             </div>
 
             {/* Sidebar */}

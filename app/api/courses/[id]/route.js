@@ -40,3 +40,35 @@ export async function GET(request, { params }) {
     )
   }
 }
+
+export async function DELETE(request, { params }) {
+  try {
+    const { requireAuth } = await import('@/lib/auth')
+    const { coursesDB } = await import('@/lib/db')
+    const authResult = await requireAuth(request)
+    if (authResult.error) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    // Check if user is admin
+    if (authResult.user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      )
+    }
+
+    const { id } = params
+    coursesDB.delete(id)
+    return NextResponse.json({ message: 'Course deleted successfully' })
+  } catch (error) {
+    console.error('Delete course error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
