@@ -1,16 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Navbar } from '@/components/navbar'
-import { getTranslation } from '@/lib/i18n'
+import { useAuth } from '@/contexts/auth-context'
+import { useLanguage } from '@/contexts/language-context'
 
 export default function SignupPage() {
-  const [locale, setLocale] = useState('en')
+  const router = useRouter()
+  const { signup } = useAuth()
+  const { locale, t } = useLanguage()
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -18,13 +22,9 @@ export default function SignupPage() {
     confirmPassword: '',
   })
   const [errors, setErrors] = useState({})
-  const t = (key) => getTranslation(locale, key)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-  }, [])
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const newErrors = {}
 
@@ -46,8 +46,17 @@ export default function SignupPage() {
     }
 
     setErrors({})
-    // TODO: Implement signup logic
-    console.log('Signup:', formData)
+    setLoading(true)
+
+    const result = await signup(formData.email, formData.password, formData.fullName)
+    
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setErrors({ general: result.error || 'Signup failed' })
+    }
+    
+    setLoading(false)
   }
 
   const handleChange = (e) => {
@@ -80,6 +89,11 @@ export default function SignupPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {errors.general && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
+                  {errors.general}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="fullName">{t('fullName')}</Label>
                 <Input
@@ -90,6 +104,7 @@ export default function SignupPage() {
                   value={formData.fullName}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -102,6 +117,7 @@ export default function SignupPage() {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -113,9 +129,10 @@ export default function SignupPage() {
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
                 {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password}</p>
+                  <p className="text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
               <div className="space-y-2">
@@ -127,13 +144,14 @@ export default function SignupPage() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                  <p className="text-sm text-red-600">{errors.confirmPassword}</p>
                 )}
               </div>
-              <Button type="submit" className="w-full">
-                {t('createAccount')}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? t('loading') : t('createAccount')}
               </Button>
               <div className="text-center text-sm">
                 <span className="text-gray-600">

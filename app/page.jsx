@@ -4,17 +4,11 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getTranslation } from '@/lib/i18n'
-import { useState, useEffect } from 'react'
+import { useLanguage } from '@/contexts/language-context'
 import { BookOpen, Users, Award, PlayCircle } from 'lucide-react'
 
 export default function Home() {
-  const [locale, setLocale] = useState('en')
-  const t = (key) => getTranslation(locale, key)
-
-  useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-  }, [])
+  const { locale, t } = useLanguage()
 
   const features = [
     {

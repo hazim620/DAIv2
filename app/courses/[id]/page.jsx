@@ -1,104 +1,134 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/navbar'
-import { getTranslation } from '@/lib/i18n'
+import { useAuth } from '@/contexts/auth-context'
+import { useLanguage } from '@/contexts/language-context'
 import { PlayCircle, Lock, CheckCircle, Clock } from 'lucide-react'
 
 export default function CourseDetailPage() {
   const params = useParams()
+  const router = useRouter()
+  const { user } = useAuth()
+  const { locale, t } = useLanguage()
   const courseId = params.id
-  const [locale, setLocale] = useState('en')
-  const [enrolled, setEnrolled] = useState(false)
-  const t = (key) => getTranslation(locale, key)
+  const [course, setCourse] = useState(null)
+  const [enrollment, setEnrollment] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [enrolling, setEnrolling] = useState(false)
 
   useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-    // TODO: Fetch course data based on courseId
-  }, [courseId])
+    fetchCourse()
+    if (user) {
+      fetchEnrollment()
+    }
+  }, [courseId, user])
 
-  // Mock course data - replace with actual API call
-  const course = {
-    id: courseId,
-    title: locale === 'ar' ? 'مقدمة في علوم البيانات' : 'Introduction to Data Science',
-    description: locale === 'ar'
-      ? 'دورة شاملة تغطي جميع أساسيات علوم البيانات من الصفر إلى المستوى المتقدم. ستتعلم كيفية جمع البيانات، تنظيفها، تحليلها، وعرضها باستخدام أحدث الأدوات والتقنيات.'
-      : 'A comprehensive course covering all fundamentals of data science from scratch to advanced level. You will learn how to collect, clean, analyze, and visualize data using the latest tools and techniques.',
-    instructor: 'Dr. Ahmed Ali',
-    duration: '10 hours',
-    students: 1250,
-    price: 99,
-    sections: [
-      {
-        id: 1,
-        title: locale === 'ar' ? 'القسم الأول: المقدمة' : 'Section 1: Introduction',
-        videos: [
-          {
-            id: 1,
-            title: locale === 'ar' ? 'ما هي علوم البيانات؟' : 'What is Data Science?',
-            duration: '15:30',
-            isFree: true,
-            isWatched: false,
-          },
-          {
-            id: 2,
-            title: locale === 'ar' ? 'أدوات علوم البيانات' : 'Data Science Tools',
-            duration: '20:45',
-            isFree: false,
-            isWatched: false,
-          },
-          {
-            id: 3,
-            title: locale === 'ar' ? 'إعداد البيئة' : 'Setting Up Environment',
-            duration: '12:20',
-            isFree: false,
-            isWatched: false,
-          },
-        ],
-      },
-      {
-        id: 2,
-        title: locale === 'ar' ? 'القسم الثاني: أساسيات Python' : 'Section 2: Python Basics',
-        videos: [
-          {
-            id: 4,
-            title: locale === 'ar' ? 'مقدمة إلى Python' : 'Introduction to Python',
-            duration: '18:15',
-            isFree: false,
-            isWatched: false,
-          },
-          {
-            id: 5,
-            title: locale === 'ar' ? 'البيانات والهياكل' : 'Data Structures',
-            duration: '25:30',
-            isFree: false,
-            isWatched: false,
-          },
-        ],
-      },
-    ],
-  }
-
-  const handleVideoClick = (video) => {
-    if (video.isFree || enrolled) {
-      // TODO: Navigate to video player
-      console.log('Playing video:', video)
-    } else {
-      // TODO: Show payment modal or redirect to payment
-      alert(locale === 'ar' 
-        ? 'يرجى التسجيل في الدورة لمشاهدة هذا الفيديو'
-        : 'Please enroll in the course to watch this video')
+  const fetchCourse = async () => {
+    try {
+      const response = await fetch(`/api/courses/${courseId}?locale=${locale}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setCourse(data.course)
+      }
+    } catch (error) {
+      console.error('Error fetching course:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleEnroll = () => {
-    // TODO: Implement enrollment/payment logic
-    setEnrolled(true)
-    console.log('Enrolling in course:', courseId)
+  const fetchEnrollment = async () => {
+    try {
+      const response = await fetch('/api/enrollments', {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const found = data.enrollments.find(e => e.courseId === courseId.toString())
+        setEnrollment(found)
+      }
+    } catch (error) {
+      console.error('Error fetching enrollment:', error)
+    }
+  }
+
+  const handleEnroll = async () => {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    setEnrolling(true)
+    try {
+      const response = await fetch('/api/enrollments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ courseId }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setEnrollment(data.enrollment)
+        // Redirect to first video
+        if (course && course.sections.length > 0 && course.sections[0].videos.length > 0) {
+          router.push(`/courses/${courseId}/${course.sections[0].videos[0].id}`)
+        }
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Enrollment failed')
+      }
+    } catch (error) {
+      console.error('Enrollment error:', error)
+      alert('Enrollment failed')
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  const handleVideoClick = (video) => {
+    if (video.isFree || enrollment) {
+      router.push(`/courses/${courseId}/${video.id}`)
+    } else {
+      alert(
+        locale === 'ar'
+          ? 'يرجى التسجيل في الدورة لمشاهدة هذا الفيديو'
+          : 'Please enroll in the course to watch this video'
+      )
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">{t('loading')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!course) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-gray-600">{locale === 'ar' ? 'الدورة غير موجودة' : 'Course not found'}</p>
+            <Link href="/courses">
+              <Button className="mt-4">{locale === 'ar' ? 'العودة للدورات' : 'Back to Courses'}</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const totalVideos = course.sections.reduce((sum, section) => sum + section.videos.length, 0)
@@ -153,34 +183,43 @@ export default function CourseDetailPage() {
                       <div key={section.id} className="border rounded-lg p-4">
                         <h3 className="font-semibold text-lg mb-3">{section.title}</h3>
                         <div className="space-y-2">
-                          {section.videos.map((video) => (
-                            <div
-                              key={video.id}
-                              className={`flex items-center justify-between p-3 rounded border cursor-pointer transition-colors ${
-                                video.isFree || enrolled
-                                  ? 'hover:bg-gray-50 border-gray-200'
-                                  : 'opacity-60 border-gray-300'
-                              }`}
-                              onClick={() => handleVideoClick(video)}
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                {video.isFree || enrolled ? (
-                                  <PlayCircle className="h-5 w-5 text-primary" />
-                                ) : (
-                                  <Lock className="h-5 w-5 text-gray-400" />
-                                )}
-                                <div>
-                                  <p className="font-medium">{video.title}</p>
-                                  <p className="text-sm text-gray-500">{video.duration}</p>
+                          {section.videos.map((video) => {
+                            const canWatch = video.isFree || enrollment
+                            const isWatched = enrollment?.completedVideos?.includes(video.id.toString())
+
+                            return (
+                              <div
+                                key={video.id}
+                                className={`flex items-center justify-between p-3 rounded border cursor-pointer transition-colors ${
+                                  canWatch
+                                    ? 'hover:bg-gray-50 border-gray-200'
+                                    : 'opacity-60 border-gray-300'
+                                }`}
+                                onClick={() => handleVideoClick(video)}
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  {canWatch ? (
+                                    isWatched ? (
+                                      <CheckCircle className="h-5 w-5 text-green-600" />
+                                    ) : (
+                                      <PlayCircle className="h-5 w-5 text-primary" />
+                                    )
+                                  ) : (
+                                    <Lock className="h-5 w-5 text-gray-400" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium">{video.title}</p>
+                                    <p className="text-sm text-gray-500">{video.duration}</p>
+                                  </div>
+                                  {video.isFree && (
+                                    <span className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                      {t('free')}
+                                    </span>
+                                  )}
                                 </div>
-                                {video.isFree && (
-                                  <span className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                    {t('free')}
-                                  </span>
-                                )}
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -195,9 +234,7 @@ export default function CourseDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-2xl">${course.price}</CardTitle>
                   <CardDescription>
-                    {locale === 'ar'
-                      ? 'سعر الدورة'
-                      : 'Course Price'}
+                    {locale === 'ar' ? 'سعر الدورة' : 'Course Price'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -207,22 +244,44 @@ export default function CourseDetailPage() {
                       <span className="font-medium">{totalVideos}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{locale === 'ar' ? 'فيديوهات مجانية' : 'Free Videos'}</span>
+                      <span className="text-gray-600">
+                        {locale === 'ar' ? 'فيديوهات مجانية' : 'Free Videos'}
+                      </span>
                       <span className="font-medium">{freeVideos}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{locale === 'ar' ? 'المدة' : 'Duration'}</span>
+                      <span className="text-gray-600">
+                        {locale === 'ar' ? 'المدة' : 'Duration'}
+                      </span>
                       <span className="font-medium">{course.duration}</span>
                     </div>
+                    {enrollment && (
+                      <div className="pt-2 border-t">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-600">
+                            {locale === 'ar' ? 'التقدم' : 'Progress'}
+                          </span>
+                          <span className="font-medium">{enrollment.progress || 0}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all"
+                            style={{ width: `${enrollment.progress || 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="pt-4 border-t">
-                    {enrolled ? (
-                      <Button className="w-full" variant="outline" disabled>
-                        {locale === 'ar' ? 'مسجل بالفعل' : 'Already Enrolled'}
-                      </Button>
+                    {enrollment ? (
+                      <Link href={`/courses/${courseId}/${course.sections[0]?.videos[0]?.id || ''}`}>
+                        <Button className="w-full">
+                          {locale === 'ar' ? 'متابعة التعلم' : 'Continue Learning'}
+                        </Button>
+                      </Link>
                     ) : (
-                      <Button className="w-full" onClick={handleEnroll}>
-                        {t('enrollNow')}
+                      <Button className="w-full" onClick={handleEnroll} disabled={enrolling}>
+                        {enrolling ? t('loading') : t('enrollNow')}
                       </Button>
                     )}
                   </div>

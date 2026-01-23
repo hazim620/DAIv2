@@ -4,20 +4,68 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Navbar } from '@/components/navbar'
-import { getTranslation } from '@/lib/i18n'
-import { PlayCircle, Clock, Users } from 'lucide-react'
+import { useLanguage } from '@/contexts/language-context'
+import { PlayCircle, Clock, Users, Search } from 'lucide-react'
 
 export default function CoursesPage() {
-  const [locale, setLocale] = useState('en')
-  const t = (key) => getTranslation(locale, key)
+  const { locale, t } = useLanguage()
+  const [courses, setCourses] = useState([])
+  const [filteredCourses, setFilteredCourses] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-  }, [])
+    fetchCourses()
+  }, [locale])
 
-  // Mock courses data - replace with actual API call
-  const courses = [
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredCourses(courses)
+    } else {
+      const filtered = courses.filter(course => {
+        const title = typeof course.title === 'object' ? course.title[locale] || course.title.en : course.title
+        const description = typeof course.description === 'object' ? course.description[locale] || course.description.en : course.description
+        const query = searchQuery.toLowerCase()
+        return title.toLowerCase().includes(query) || 
+               description.toLowerCase().includes(query) ||
+               course.instructor.toLowerCase().includes(query)
+      })
+      setFilteredCourses(filtered)
+    }
+  }, [searchQuery, courses, locale])
+
+  const fetchCourses = async () => {
+    try {
+      const response = await fetch(`/api/courses?locale=${locale}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setCourses(data.courses || [])
+        setFilteredCourses(data.courses || [])
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">{t('loading')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback courses if API fails
+  const fallbackCourses = [
     {
       id: 1,
       title: locale === 'ar' ? 'مقدمة في علوم البيانات' : 'Introduction to Data Science',
@@ -63,15 +111,36 @@ export default function CoursesPage() {
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">{t('allCourses')}</h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-4">
               {locale === 'ar'
                 ? 'استكشف مجموعة واسعة من الدورات التعليمية'
                 : 'Explore a wide range of educational courses'}
             </p>
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder={locale === 'ar' ? 'ابحث عن دورة...' : 'Search for a course...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map((course) => (
+          {filteredCourses.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-gray-600">
+                  {searchQuery
+                    ? (locale === 'ar' ? 'لم يتم العثور على دورات' : 'No courses found')
+                    : (locale === 'ar' ? 'لا توجد دورات متاحة حالياً' : 'No courses available at the moment')}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCourses.map((course) => (
               <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                   <PlayCircle className="h-16 w-16 text-primary/50" />
@@ -111,8 +180,9 @@ export default function CoursesPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

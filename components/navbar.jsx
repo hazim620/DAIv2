@@ -1,18 +1,29 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { getTranslation } from '@/lib/i18n'
-import { useState, useEffect } from 'react'
+import { useAuth } from '@/contexts/auth-context'
+import { useLanguage } from '@/contexts/language-context'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { User, LogOut, Settings } from 'lucide-react'
 
 export function Navbar() {
-  const [locale, setLocale] = useState('en')
-  const t = (key) => getTranslation(locale, key)
+  const router = useRouter()
+  const { user, logout } = useAuth()
+  const { t } = useLanguage()
 
-  useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-  }, [])
+  const handleLogout = async () => {
+    await logout()
+  }
 
   return (
     <nav className="border-b bg-white shadow-sm">
@@ -39,12 +50,42 @@ export function Navbar() {
           </div>
           <div className="flex items-center gap-4">
             <LanguageSwitcher />
-            <Link href="/login">
-              <Button variant="ghost">{t('login')}</Button>
-            </Link>
-            <Link href="/signup">
-              <Button>{t('signup')}</Button>
-            </Link>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="hidden md:inline">{user.name}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push('/dashboard')}>
+                    <User className="mr-2 h-4 w-4" />
+                    {t('myCourses')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/profile')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    {t('profile') || 'Profile'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {t('logout')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">{t('login')}</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button>{t('signup')}</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,31 +1,42 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Navbar } from '@/components/navbar'
-import { getTranslation } from '@/lib/i18n'
+import { useAuth } from '@/contexts/auth-context'
+import { useLanguage } from '@/contexts/language-context'
 
 export default function LoginPage() {
-  const [locale, setLocale] = useState('en')
+  const router = useRouter()
+  const { login } = useAuth()
+  const { locale, t } = useLanguage()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false,
   })
-  const t = (key) => getTranslation(locale, key)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    setLocale(localStorage.getItem('locale') || 'en')
-  }, [])
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // TODO: Implement login logic
-    console.log('Login:', formData)
+    setError('')
+    setLoading(true)
+
+    const result = await login(formData.email, formData.password)
+    
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setError(result.error || 'Login failed')
+    }
+    
+    setLoading(false)
   }
 
   const handleChange = (e) => {
@@ -51,6 +62,11 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
+                  {error}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">{t('email')}</Label>
                 <Input
@@ -61,6 +77,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -77,6 +94,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="flex items-center space-x-2">
@@ -87,13 +105,14 @@ export default function LoginPage() {
                   checked={formData.rememberMe}
                   onChange={handleChange}
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  disabled={loading}
                 />
                 <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
                   {t('rememberMe')}
                 </Label>
               </div>
-              <Button type="submit" className="w-full">
-                {t('login')}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? t('loading') : t('login')}
               </Button>
               <div className="text-center text-sm">
                 <span className="text-gray-600">

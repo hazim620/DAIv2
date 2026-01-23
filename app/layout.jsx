@@ -1,5 +1,6 @@
 import './globals.css'
 import { LanguageProvider } from '@/contexts/language-context'
+import { AuthProvider } from '@/contexts/auth-context'
 
 export const metadata = {
   title: 'DAI - Data & AI Learning Platform',
@@ -10,9 +11,11 @@ export default function Layout({ children }) {
   return (
     <html lang="en" dir="ltr">
       <body className="antialiased">
-        <LanguageProvider>
-          {children}
-        </LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   )
