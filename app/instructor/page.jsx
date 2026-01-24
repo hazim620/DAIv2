@@ -8,16 +8,20 @@ import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
-import { BookOpen, Users, TrendingUp, Award, PlayCircle, Edit, MessageSquare, Star } from 'lucide-react'
+import { 
+  BookOpen, Users, TrendingUp, Award, Edit, Plus, 
+  FileText, MessageSquare, Bell, Settings, BarChart3,
+  CheckCircle, Clock, AlertCircle, XCircle
+} from 'lucide-react'
 
-export default function InstructorPage() {
+export default function InstructorDashboard() {
   const router = useRouter()
   const { user } = useAuth()
   const { locale, t } = useLanguage()
-  const [myCourses, setMyCourses] = useState([])
-  const [enrollments, setEnrollments] = useState([])
-  const [reviews, setReviews] = useState([])
+  const [dashboardData, setDashboardData] = useState(null)
+  const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
     if (!user) {
@@ -28,50 +32,52 @@ export default function InstructorPage() {
       router.push('/dashboard')
       return
     }
-    fetchData()
-  }, [user, router, locale])
+    fetchDashboardData()
+    fetchCourses()
+  }, [user, router])
 
-  const fetchData = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const [coursesRes, enrollmentsRes] = await Promise.all([
-        fetch(`/api/courses?locale=${locale}`, { credentials: 'include' }),
-        fetch('/api/enrollments', { credentials: 'include' }),
-      ])
-
-      // Fetch reviews for instructor's courses
-      const myCourseIds = []
-      if (coursesRes.ok) {
-        const coursesData = await coursesRes.json()
-        const filtered = coursesData.courses.filter(
-          course => course.instructor === user.name || user.role === 'admin'
-        )
-        setMyCourses(filtered)
-        myCourseIds.push(...filtered.map(c => c.id.toString()))
-      }
-
-      // Fetch reviews for instructor's courses
-      const reviewsPromises = myCourseIds.map(courseId =>
-        fetch(`/api/reviews?courseId=${courseId}`, { credentials: 'include' }).catch(() => ({ ok: false }))
-      )
-      const reviewsResults = await Promise.all(reviewsPromises)
-      const allReviews = []
-      for (const result of reviewsResults) {
-        if (result.ok) {
-          const data = await result.json()
-          allReviews.push(...(data.reviews || []))
-        }
-      }
-      setReviews(allReviews)
-
-      if (enrollmentsRes.ok) {
-        const enrollmentsData = await enrollmentsRes.json()
-        setEnrollments(enrollmentsData.enrollments || [])
+      const res = await fetch('/api/instructor/dashboard', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setDashboardData(data)
       }
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error fetching dashboard data:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchCourses = async () => {
+    try {
+      const res = await fetch('/api/instructor/courses', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setCourses(data.courses || [])
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error)
+    }
+  }
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      draft: { icon: FileText, color: 'bg-gray-100 text-gray-800', label: 'Draft' },
+      submitted_for_review: { icon: Clock, color: 'bg-blue-100 text-blue-800', label: 'Under Review' },
+      changes_requested: { icon: AlertCircle, color: 'bg-yellow-100 text-yellow-800', label: 'Changes Requested' },
+      approved: { icon: CheckCircle, color: 'bg-green-100 text-green-800', label: 'Approved' },
+      published: { icon: CheckCircle, color: 'bg-green-100 text-green-800', label: 'Published' },
+    }
+    const badge = badges[status] || badges.draft
+    const Icon = badge.icon
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+        <Icon className="h-3 w-3" />
+        {badge.label}
+      </span>
+    )
   }
 
   if (loading || !user || (user.role !== 'instructor' && user.role !== 'admin')) {
@@ -85,249 +91,324 @@ export default function InstructorPage() {
     )
   }
 
-  // Calculate stats for instructor's courses
-  const myEnrollments = enrollments.filter(e => 
-    myCourses.some(course => course.id.toString() === e.courseId)
-  )
-  const totalStudents = myEnrollments.length
-
-  const totalRevenue = myCourses.reduce((sum, course) => {
-    const enrollmentsForCourse = enrollments.filter(e => e.courseId === course.id.toString())
-    return sum + (course.price * enrollmentsForCourse.length)
-  }, 0)
-
-  const myReviews = reviews.filter(r => 
-    myCourses.some(course => course.id.toString() === r.courseId)
-  )
-  const averageRating = myReviews.length > 0
-    ? (myReviews.reduce((sum, r) => sum + r.rating, 0) / myReviews.length).toFixed(1)
-    : 0
+  const summary = dashboardData?.summary || {}
+  const statusBreakdown = dashboardData?.statusBreakdown || {}
+  const recentNotifications = dashboardData?.recentNotifications || []
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
-      <div className="flex-1 py-12">
-        <div className="container mx-auto px-4">
+      <div className="flex-1">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              {locale === 'ar' ? `لوحة المدرب - ${user.name}` : `Instructor Dashboard - ${user.name}`}
-            </h1>
-            <p className="text-gray-600">
-              {locale === 'ar'
-                ? 'إدارة دوراتك ومراقبة أداء الطلاب'
-                : 'Manage your courses and monitor student performance'}
-            </p>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'دوراتي' : 'My Courses'}
-                </CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{myCourses.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'إجمالي الطلاب' : 'Total Students'}
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalStudents}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'}
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'التقييم المتوسط' : 'Average Rating'}
-                </CardTitle>
-                <Award className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{averageRating} ⭐</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* My Courses */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {locale === 'ar' ? 'دوراتي' : 'My Courses'}
-              </h2>
-              {user.role === 'admin' && (
-                <Link href="/admin">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                  {locale === 'ar' ? 'لوحة تحكم المدرب' : 'Instructor Panel'}
+                </h1>
+                <p className="text-gray-600">
+                  {locale === 'ar'
+                    ? 'إدارة دوراتك ومراقبة أداء الطلاب'
+                    : 'Manage your courses and monitor student performance'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Link href="/instructor/courses/new">
                   <Button>
-                    {locale === 'ar' ? 'إدارة الدورات' : 'Manage Courses'}
+                    <Plus className="h-4 w-4 mr-2" />
+                    {locale === 'ar' ? 'إنشاء دورة جديدة' : 'Create New Course'}
                   </Button>
                 </Link>
-              )}
+                <Link href="/instructor/settings">
+                  <Button variant="outline">
+                    <Settings className="h-4 w-4 mr-2" />
+                    {locale === 'ar' ? 'الإعدادات' : 'Settings'}
+                  </Button>
+                </Link>
+              </div>
             </div>
+          </div>
 
-            {myCourses.length === 0 ? (
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6 border-b">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-4 py-2 font-medium ${
+                activeTab === 'overview'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'نظرة عامة' : 'Overview'}
+            </button>
+            <button
+              onClick={() => setActiveTab('courses')}
+              className={`px-4 py-2 font-medium ${
+                activeTab === 'courses'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'الدورات' : 'Courses'}
+            </button>
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`px-4 py-2 font-medium ${
+                activeTab === 'students'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'الطلاب' : 'Students'}
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-4 py-2 font-medium ${
+                activeTab === 'analytics'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'التحليلات' : 'Analytics'}
+            </button>
+          </div>
+
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {locale === 'ar' ? 'إجمالي الدورات' : 'Total Courses'}
+                    </CardTitle>
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.totalCourses || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {locale === 'ar' ? 'منشورة' : 'Published'}
+                    </CardTitle>
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.publishedCourses || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {locale === 'ar' ? 'مسودات' : 'Drafts'}
+                    </CardTitle>
+                    <FileText className="h-4 w-4 text-gray-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.draftCourses || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {locale === 'ar' ? 'إجمالي الطلاب' : 'Total Students'}
+                    </CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.totalStudents || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {locale === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'}
+                    </CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">${(summary.totalRevenue || 0).toLocaleString()}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Course Status Breakdown */}
               <Card>
-                <CardContent className="py-12 text-center">
-                  <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    {locale === 'ar' ? 'لا توجد دورات' : 'No Courses Yet'}
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    {locale === 'ar'
-                      ? 'ابدأ بإنشاء دورتك الأولى'
-                      : 'Start by creating your first course'}
-                  </p>
-                  {user.role === 'admin' && (
-                    <Link href="/admin">
-                      <Button>{locale === 'ar' ? 'إنشاء دورة' : 'Create Course'}</Button>
-                    </Link>
+                <CardHeader>
+                  <CardTitle>{locale === 'ar' ? 'حالة الدورات' : 'Course Status Breakdown'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{statusBreakdown.draft || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Draft</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold">{statusBreakdown.submitted_for_review || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Under Review</div>
+                    </div>
+                    <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                      <div className="text-2xl font-bold">{statusBreakdown.changes_requested || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Changes Requested</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold">{statusBreakdown.approved || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Approved</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-100 rounded-lg">
+                      <div className="text-2xl font-bold">{statusBreakdown.published || 0}</div>
+                      <div className="text-sm text-gray-600 mt-1">Published</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Recent Notifications */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    {locale === 'ar' ? 'الإشعارات الأخيرة' : 'Recent Notifications'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {recentNotifications.length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">
+                      {locale === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {recentNotifications.map((notification) => (
+                        <div key={notification.id} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-medium">{notification.courseTitle}</p>
+                              <p className="text-sm text-gray-600">{notification.message}</p>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(notification.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {myCourses.map((course) => {
-                  const courseTitle = typeof course.title === 'object' 
-                    ? course.title[locale] || course.title.en 
-                    : course.title
-                  const courseDescription = typeof course.description === 'object'
-                    ? course.description[locale] || course.description.en
-                    : course.description
-                  const enrollmentsForCourse = enrollments.filter(e => e.courseId === course.id.toString())
-                  const totalVideos = course.sections?.reduce(
-                    (sum, section) => sum + (section.videos?.length || 0),
-                    0
-                  ) || 0
-                  const courseReviews = reviews.filter(r => r.courseId === course.id.toString())
-                  const avgRating = courseReviews.length > 0
-                    ? (courseReviews.reduce((sum, r) => sum + r.rating, 0) / courseReviews.length).toFixed(1)
-                    : 0
+            </div>
+          )}
 
-                  return (
-                    <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                      <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                        <PlayCircle className="h-16 w-16 text-primary/50" />
-                      </div>
-                      <CardHeader>
-                        <CardTitle className="text-xl line-clamp-2">{courseTitle}</CardTitle>
-                        <CardDescription className="line-clamp-2">
-                          {courseDescription}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-4 text-gray-600">
-                              <div className="flex items-center gap-1">
-                                <Users className="h-4 w-4" />
-                                <span>{enrollmentsForCourse.length}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <PlayCircle className="h-4 w-4" />
-                                <span>{totalVideos}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Star className="h-4 w-4 text-yellow-500" />
-                                <span>{avgRating}</span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-primary">${course.price}</p>
-                            </div>
+          {/* Courses Tab */}
+          {activeTab === 'courses' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">{locale === 'ar' ? 'دوراتي' : 'My Courses'}</h2>
+                <Link href="/instructor/courses/new">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {locale === 'ar' ? 'دورة جديدة' : 'New Course'}
+                  </Button>
+                </Link>
+              </div>
+
+              {courses.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">
+                      {locale === 'ar' ? 'لا توجد دورات' : 'No Courses Yet'}
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      {locale === 'ar' ? 'ابدأ بإنشاء دورتك الأولى' : 'Start by creating your first course'}
+                    </p>
+                    <Link href="/instructor/courses/new">
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        {locale === 'ar' ? 'إنشاء دورة' : 'Create Course'}
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {courses.map((course) => {
+                    const courseTitle = typeof course.title === 'object' 
+                      ? course.title[locale] || course.title.en 
+                      : course.title
+                    const courseDescription = typeof course.description === 'object'
+                      ? course.description[locale] || course.description.en
+                      : course.description
+
+                    return (
+                      <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                        <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                          <BookOpen className="h-16 w-16 text-primary/50" />
+                          <div className="absolute top-2 right-2">
+                            {getStatusBadge(course.status)}
                           </div>
-                          <div className="flex gap-2 pt-2">
+                        </div>
+                        <CardHeader>
+                          <CardTitle className="text-xl line-clamp-2">{courseTitle}</CardTitle>
+                          <CardDescription className="line-clamp-2">{courseDescription}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex gap-2">
+                            <Link href={`/instructor/courses/${course.id}`} className="flex-1">
+                              <Button variant="outline" className="w-full">
+                                <Edit className="h-4 w-4 mr-2" />
+                                {locale === 'ar' ? 'تحرير' : 'Edit'}
+                              </Button>
+                            </Link>
                             <Link href={`/courses/${course.id}`} className="flex-1">
                               <Button variant="outline" className="w-full">
                                 {locale === 'ar' ? 'عرض' : 'View'}
                               </Button>
                             </Link>
-                            {user.role === 'admin' && (
-                              <Button variant="outline" className="flex-1">
-                                <Edit className="h-4 w-4 mr-2" />
-                                {t('edit')}
-                              </Button>
-                            )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Students Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{locale === 'ar' ? 'الطلاب المسجلين' : 'Enrolled Students'}</CardTitle>
-              <CardDescription>
-                {locale === 'ar'
-                  ? 'عرض الطلاب المسجلين في دوراتك'
-                  : 'View students enrolled in your courses'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {myCourses.map((course) => {
-                  const enrollmentsForCourse = enrollments.filter(e => e.courseId === course.id.toString())
-                  const courseTitle = typeof course.title === 'object' 
-                    ? course.title[locale] || course.title.en 
-                    : course.title
+          {/* Students Tab */}
+          {activeTab === 'students' && (
+            <div>
+              <h2 className="text-2xl font-bold mb-4">{locale === 'ar' ? 'الطلاب' : 'Students'}</h2>
+              <Link href="/instructor/students">
+                <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                  <CardContent className="py-6 text-center">
+                    <Users className="h-12 w-12 text-primary mx-auto mb-2" />
+                    <p className="font-medium">
+                      {locale === 'ar' ? 'عرض جميع الطلاب' : 'View All Students'}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          )}
 
-                  if (enrollmentsForCourse.length === 0) return null
-
-                  return (
-                    <div key={course.id} className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-lg mb-3">{courseTitle}</h3>
-                      <div className="space-y-2">
-                        {enrollmentsForCourse.map((enrollment) => (
-                          <div key={enrollment.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <div>
-                              <p className="font-medium">
-                                {locale === 'ar' ? 'طالب' : 'Student'} #{enrollment.userId}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {locale === 'ar' ? 'التقدم:' : 'Progress:'} {enrollment.progress || 0}%
-                              </p>
-                            </div>
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-primary h-2 rounded-full transition-all"
-                                style={{ width: `${enrollment.progress || 0}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-                {myEnrollments.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">
-                    {locale === 'ar' ? 'لا يوجد طلاب مسجلين بعد' : 'No students enrolled yet'}
+          {/* Analytics Tab */}
+          {activeTab === 'analytics' && (
+            <div>
+              <h2 className="text-2xl font-bold mb-4">{locale === 'ar' ? 'التحليلات' : 'Analytics'}</h2>
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <BarChart3 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">
+                    {locale === 'ar' ? 'التحليلات التفصيلية قريباً' : 'Detailed analytics coming soon'}
                   </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>
