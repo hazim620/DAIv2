@@ -24,6 +24,12 @@ export default function InstructorSettingsPage() {
   const [errors, setErrors] = useState({})
   const [success, setSuccess] = useState('')
 
+  useEffect(() => {
+    if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
+      router.replace('/login')
+    }
+  }, [user, router])
+
   const handleChangePassword = async (e) => {
     e.preventDefault()
     setErrors({})
@@ -90,7 +96,6 @@ export default function InstructorSettingsPage() {
   }
 
   if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-    router.push('/login')
     return null
   }
 

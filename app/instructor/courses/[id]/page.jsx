@@ -16,9 +16,14 @@ export default function EditCoursePage() {
   const [initialFormData, setInitialFormData] = useState(null)
 
   if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-    router.push('/login')
     return null
   }
+
+  useEffect(() => {
+    if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
+      router.replace('/login')
+    }
+  }, [user, router])
 
   useEffect(() => {
     const load = async () => {

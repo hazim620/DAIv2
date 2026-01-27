@@ -41,6 +41,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   const initializedRef = useRef(false)
 
   useEffect(() => {
+    if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
+      router.replace('/login')
+    }
+  }, [user, router])
+
+  useEffect(() => {
     if (initializedRef.current) return
     if (!initialCourseId && !initialFormData) return
 
@@ -2257,7 +2263,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   }
 
   if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-    router.push('/login')
     return null
   }
 
