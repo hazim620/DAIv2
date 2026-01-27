@@ -61,9 +61,23 @@ export async function POST(request) {
       token,
     }, { status: 201 })
   } catch (error) {
-    console.error('Signup error:', error)
+    console.error('Signup error:', {
+      message: error?.message,
+      code: error?.code,
+      dbHost: process.env.DB_HOST,
+      dbName: process.env.DB_NAME,
+      dbUser: process.env.DB_USER,
+      dbPort: process.env.DB_PORT,
+      dbSsl: process.env.DB_SSL,
+      stack: error?.stack,
+    })
     return Response.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        // Temporary: helps debug Amplify/RDS issues. Remove for production.
+        details: error?.message || null,
+        code: error?.code || null,
+      },
       { status: 500 }
     )
   }
