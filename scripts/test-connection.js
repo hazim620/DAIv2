@@ -6,7 +6,7 @@ const { Client } = pg
 
 async function testConnection() {
   const config = {
-    host: process.env.DB_HOST || 'dai-platform-db.cnkksc4kgd5b.me-south-1.rds.amazonaws.com',
+    host: process.env.DB_HOST || 'dai-platform.cnkksc4kgd5b.me-south-1.rds.amazonaws.com',
     port: parseInt(process.env.DB_PORT || '5432'),
     database: process.env.DB_NAME || 'postgres',
     user: process.env.DB_USER || 'postgres',

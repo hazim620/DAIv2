@@ -5,7 +5,7 @@ import pg from 'pg'
 const { Client } = pg
 
 async function testConnection() {
-  const host = process.env.DB_HOST || 'dai-platform-db.cnkksc4kgd5b.me-south-1.rds.amazonaws.com'
+  const host = process.env.DB_HOST || 'dai-platform.cnkksc4kgd5b.me-south-1.rds.amazonaws.com'
   // AWS RDS requires SSL - always enable it for RDS endpoints
   const isRDS = host.includes('.rds.amazonaws.com') || host.includes('.rds.')
   const useSSL = isRDS || process.env.DB_SSL === 'true'
