@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { coursesDB } from '@/lib/db'
 
@@ -7,7 +6,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const locale = searchParams.get('locale') || 'en'
     
-    const courses = coursesDB.getAll()
+    const courses = await coursesDB.getAll()
     
     // Format courses for the requested locale
     const formattedCourses = courses.map(course => ({
@@ -24,10 +23,10 @@ export async function GET(request) {
       })),
     }))
 
-    return NextResponse.json({ courses: formattedCourses })
+    return Response.json({ courses: formattedCourses })
   } catch (error) {
     console.error('Get courses error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -38,7 +37,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -46,19 +45,19 @@ export async function POST(request) {
 
     // Check if user is admin
     if (authResult.user.role !== 'admin') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
     const body = await request.json()
-    const course = coursesDB.create(body)
+    const course = await coursesDB.create(body)
 
-    return NextResponse.json({ course }, { status: 201 })
+    return Response.json({ course }, { status: 201 })
   } catch (error) {
     console.error('Create course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -69,7 +68,7 @@ export async function DELETE(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -77,7 +76,7 @@ export async function DELETE(request) {
 
     // Check if user is admin
     if (authResult.user.role !== 'admin') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
@@ -87,17 +86,17 @@ export async function DELETE(request) {
     const courseId = searchParams.get('id')
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
     }
 
-    coursesDB.delete(courseId)
-    return NextResponse.json({ message: 'Course deleted successfully' })
+    await coursesDB.delete(courseId)
+    return Response.json({ message: 'Course deleted successfully' })
   } catch (error) {
     console.error('Delete course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

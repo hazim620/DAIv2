@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { reviewsDB, usersDB } from '@/lib/db'
 
@@ -8,7 +7,7 @@ export async function GET(request) {
     const courseId = searchParams.get('courseId')
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
@@ -16,9 +15,9 @@ export async function GET(request) {
 
     // If courseId is 'all', get all reviews (for admin)
     const reviews = courseId === 'all' 
-      ? reviewsDB.getAll()
-      : reviewsDB.getByCourseId(courseId)
-    const users = usersDB.getAll()
+      ? await reviewsDB.getAll()
+      : await reviewsDB.getByCourseId(courseId)
+    const users = await usersDB.getAll()
 
     // Enrich reviews with user data
     const enrichedReviews = reviews.map(review => {
@@ -33,10 +32,10 @@ export async function GET(request) {
       }
     })
 
-    return NextResponse.json({ reviews: enrichedReviews })
+    return Response.json({ reviews: enrichedReviews })
   } catch (error) {
     console.error('Get reviews error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -47,7 +46,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -57,32 +56,32 @@ export async function POST(request) {
     const { courseId, rating, comment } = body
 
     if (!courseId || !rating || rating < 1 || rating > 5) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID and valid rating (1-5) are required' },
         { status: 400 }
       )
     }
 
     // Check if user already reviewed this course
-    const existing = reviewsDB.getByUserAndCourse(authResult.user.id, courseId)
+    const existing = await reviewsDB.getByUserAndCourse(authResult.user.id, courseId)
     if (existing) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'You have already reviewed this course' },
         { status: 400 }
       )
     }
 
-    const review = reviewsDB.create({
+    const review = await reviewsDB.create({
       userId: authResult.user.id,
       courseId: courseId.toString(),
       rating: parseInt(rating),
       comment: comment || '',
     })
 
-    return NextResponse.json({ review }, { status: 201 })
+    return Response.json({ review }, { status: 201 })
   } catch (error) {
     console.error('Create review error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

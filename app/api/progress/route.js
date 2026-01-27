@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { progressDB, enrollmentsDB } from '@/lib/db'
 
@@ -6,7 +5,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -16,23 +15,24 @@ export async function POST(request) {
     const { enrollmentId, videoId, watched, duration } = body
 
     if (!enrollmentId || !videoId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Enrollment ID and Video ID are required' },
         { status: 400 }
       )
     }
 
     // Verify enrollment belongs to user
-    const enrollment = enrollmentsDB.getAll().find(e => e.id === enrollmentId)
+    const allEnrollments = await enrollmentsDB.getAll()
+    const enrollment = allEnrollments.find(e => e.id === enrollmentId)
     if (!enrollment || enrollment.userId !== authResult.user.id) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
     // Update progress
-    const progress = progressDB.updateVideoProgress(
+    const progress = await progressDB.updateVideoProgress(
       enrollmentId,
       videoId,
       watched || false,
@@ -40,7 +40,7 @@ export async function POST(request) {
     )
 
     // Update enrollment progress
-    const allProgress = progressDB.getByEnrollment(enrollmentId)
+    const allProgress = await progressDB.getByEnrollment(enrollmentId)
     const totalVideos = enrollment.course?.sections?.reduce(
       (sum, section) => sum + section.videos.length,
       0
@@ -50,15 +50,15 @@ export async function POST(request) {
       ? Math.round((completedVideos / totalVideos) * 100)
       : 0
 
-    enrollmentsDB.update(enrollmentId, {
+    await enrollmentsDB.update(enrollmentId, {
       progress: progressPercentage,
       completedVideos: allProgress.filter(p => p.watched).map(p => p.videoId),
     })
 
-    return NextResponse.json({ progress, progressPercentage })
+    return Response.json({ progress, progressPercentage })
   } catch (error) {
     console.error('Update progress error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -69,7 +69,7 @@ export async function GET(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -79,26 +79,27 @@ export async function GET(request) {
     const enrollmentId = searchParams.get('enrollmentId')
 
     if (!enrollmentId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Enrollment ID is required' },
         { status: 400 }
       )
     }
 
     // Verify enrollment belongs to user
-    const enrollment = enrollmentsDB.getAll().find(e => e.id === enrollmentId)
+    const allEnrollments = await enrollmentsDB.getAll()
+    const enrollment = allEnrollments.find(e => e.id === enrollmentId)
     if (!enrollment || enrollment.userId !== authResult.user.id) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
-    const progress = progressDB.getByEnrollment(enrollmentId)
-    return NextResponse.json({ progress })
+    const progress = await progressDB.getByEnrollment(enrollmentId)
+    return Response.json({ progress })
   } catch (error) {
     console.error('Get progress error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

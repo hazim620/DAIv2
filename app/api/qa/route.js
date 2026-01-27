@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { qaDB, usersDB } from '@/lib/db'
 
@@ -8,14 +7,14 @@ export async function GET(request) {
     const courseId = searchParams.get('courseId')
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
     }
 
-    const qas = qaDB.getByCourseId(courseId)
-    const users = usersDB.getAll()
+    const qas = await qaDB.getByCourseId(courseId)
+    const users = await usersDB.getAll()
 
     // Enrich Q&As with user data
     const enrichedQAs = qas.map(qa => {
@@ -43,10 +42,10 @@ export async function GET(request) {
       }
     })
 
-    return NextResponse.json({ qas: enrichedQAs })
+    return Response.json({ qas: enrichedQAs })
   } catch (error) {
     console.error('Get Q&A error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -57,7 +56,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -69,38 +68,38 @@ export async function POST(request) {
     // If questionId is provided, it's an answer
     if (questionId) {
       if (!answer) {
-        return NextResponse.json(
+        return Response.json(
           { error: 'Answer is required' },
           { status: 400 }
         )
       }
 
-      const newAnswer = qaDB.addAnswer(questionId, {
+      const newAnswer = await qaDB.addAnswer(questionId, {
         userId: authResult.user.id,
         answer,
       })
 
-      return NextResponse.json({ answer: newAnswer }, { status: 201 })
+      return Response.json({ answer: newAnswer }, { status: 201 })
     }
 
     // Otherwise, it's a new question
     if (!courseId || !question) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID and question are required' },
         { status: 400 }
       )
     }
 
-    const qa = qaDB.create({
+    const qa = await qaDB.create({
       userId: authResult.user.id,
       courseId: courseId.toString(),
       question,
     })
 
-    return NextResponse.json({ qa }, { status: 201 })
+    return Response.json({ qa }, { status: 201 })
   } catch (error) {
     console.error('Create Q&A error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

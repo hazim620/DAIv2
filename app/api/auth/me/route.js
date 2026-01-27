@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { usersDB } from '@/lib/db'
@@ -10,7 +9,7 @@ export async function GET(request) {
                   request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
@@ -18,15 +17,15 @@ export async function GET(request) {
 
     const decoded = verifyToken(token)
     if (!decoded) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Invalid token' },
         { status: 401 }
       )
     }
 
-    const user = usersDB.getById(decoded.id)
+    const user = await usersDB.getById(decoded.id)
     if (!user) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'User not found' },
         { status: 404 }
       )
@@ -35,10 +34,10 @@ export async function GET(request) {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
 
-    return NextResponse.json({ user: userWithoutPassword })
+    return Response.json({ user: userWithoutPassword })
   } catch (error) {
     console.error('Get user error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

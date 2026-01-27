@@ -10,6 +10,7 @@ import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import { BookOpen, Plus, Trash2, Edit, Users, Award, TrendingUp, MessageSquare, Star } from 'lucide-react'
+import Link from 'next/link'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -165,10 +166,18 @@ export default function AdminPage() {
                   : 'Manage courses, users, and content'}
               </p>
             </div>
-            <Button onClick={() => setShowForm(!showForm)}>
-              <Plus className="h-4 w-4 mr-2" />
-              {locale === 'ar' ? 'إضافة دورة' : 'Add Course'}
-            </Button>
+            <div className="flex gap-2">
+              <Link href="/admin/instructors">
+                <Button variant="outline">
+                  <Users className="h-4 w-4 mr-2" />
+                  {locale === 'ar' ? 'إدارة المعلمين' : 'Manage Instructors'}
+                </Button>
+              </Link>
+              <Button onClick={() => setShowForm(!showForm)}>
+                <Plus className="h-4 w-4 mr-2" />
+                {locale === 'ar' ? 'إضافة دورة' : 'Add Course'}
+              </Button>
+            </div>
           </div>
 
           {/* Stats */}

@@ -1,25 +1,34 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { coursesDB, courseSubmissionsDB, courseStatusHistoryDB } from '@/lib/db'
+import { validateCourseContent } from '@/lib/content-policies'
 
 // Get all submissions for instructor
 export async function GET(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
     }
 
     const instructorId = user.id
-    const submissions = courseSubmissionsDB.getByInstructorId(instructorId)
+    const submissions = await courseSubmissionsDB.getByInstructorId(instructorId)
     
     // Enrich with course data
-    const enrichedSubmissions = submissions.map(submission => {
-      const course = coursesDB.getById(submission.courseId)
+    const enrichedSubmissions = await Promise.all(submissions.map(async (submission) => {
+      const course = await coursesDB.getById(submission.courseId)
       return {
         ...submission,
         course: course ? {
@@ -28,12 +37,12 @@ export async function GET(request) {
           thumbnail: course.thumbnail,
         } : null,
       }
-    })
+    }))
 
-    return NextResponse.json({ submissions: enrichedSubmissions })
+    return Response.json({ submissions: enrichedSubmissions })
   } catch (error) {
     console.error('Get submissions error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -43,10 +52,19 @@ export async function GET(request) {
 // Submit a course for review
 export async function POST(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -56,16 +74,16 @@ export async function POST(request) {
     const { courseId } = body
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
     }
 
-    const course = coursesDB.getById(courseId)
+    const course = await coursesDB.getById(courseId)
     
     if (!course) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course not found' },
         { status: 404 }
       )
@@ -73,7 +91,7 @@ export async function POST(request) {
 
     // Verify instructor owns this course
     if (course.instructorId !== user.id && user.role !== 'admin') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - You can only submit your own courses' },
         { status: 403 }
       )
@@ -81,26 +99,40 @@ export async function POST(request) {
 
     // Check if course can be submitted
     if (course.status !== 'draft' && course.status !== 'changes_requested') {
-      return NextResponse.json(
+      return Response.json(
         { error: `Course cannot be submitted. Current status: ${course.status}` },
         { status: 400 }
       )
     }
 
+    // Validate course content using content policies
+    const validation = validateCourseContent(course)
+    
+    if (!validation.valid) {
+      return Response.json(
+        { 
+          error: 'Course validation failed',
+          validationErrors: validation.errors,
+          warnings: validation.warnings,
+        },
+        { status: 400 }
+      )
+    }
+
     // Create submission
-    const submission = courseSubmissionsDB.create({
+    const submission = await courseSubmissionsDB.create({
       courseId,
       instructorId: user.id,
       status: 'submitted_for_review',
     })
 
     // Update course status
-    coursesDB.update(courseId, {
+    await coursesDB.update(courseId, {
       status: 'submitted_for_review',
     })
 
     // Create status history entry
-    courseStatusHistoryDB.create({
+    await courseStatusHistoryDB.create({
       courseId,
       status: 'submitted_for_review',
       changedBy: user.id,
@@ -108,10 +140,10 @@ export async function POST(request) {
       reason: 'Submitted for admin review',
     })
 
-    return NextResponse.json({ submission }, { status: 201 })
+    return Response.json({ submission }, { status: 201 })
   } catch (error) {
     console.error('Submit course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

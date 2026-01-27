@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { enrollmentsDB, coursesDB } from '@/lib/db'
 
@@ -6,14 +5,14 @@ export async function GET(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
     }
 
-    const enrollments = enrollmentsDB.getByUserId(authResult.user.id)
-    const courses = coursesDB.getAll()
+    const enrollments = await enrollmentsDB.getByUserId(authResult.user.id)
+    const courses = await coursesDB.getAll()
 
     // Enrich enrollments with course data
     const enrichedEnrollments = enrollments.map(enrollment => {
@@ -30,10 +29,10 @@ export async function GET(request) {
       }
     })
 
-    return NextResponse.json({ enrollments: enrichedEnrollments })
+    return Response.json({ enrollments: enrichedEnrollments })
   } catch (error) {
     console.error('Get enrollments error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -44,7 +43,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -54,41 +53,41 @@ export async function POST(request) {
     const { courseId } = body
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
     }
 
     // Check if course exists
-    const course = coursesDB.getById(courseId)
+    const course = await coursesDB.getById(courseId)
     if (!course) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course not found' },
         { status: 404 }
       )
     }
 
     // Check if already enrolled
-    const existing = enrollmentsDB.getByUserAndCourse(authResult.user.id, courseId)
+    const existing = await enrollmentsDB.getByUserAndCourse(authResult.user.id, courseId)
     if (existing) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Already enrolled in this course' },
         { status: 400 }
       )
     }
 
     // Create enrollment (in a real app, you'd process payment here)
-    const enrollment = enrollmentsDB.create({
+    const enrollment = await enrollmentsDB.create({
       userId: authResult.user.id,
       courseId: courseId.toString(),
       status: 'active',
     })
 
-    return NextResponse.json({ enrollment }, { status: 201 })
+    return Response.json({ enrollment }, { status: 201 })
   } catch (error) {
     console.error('Enroll error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

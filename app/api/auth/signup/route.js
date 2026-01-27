@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { usersDB } from '@/lib/db'
 import { hashPassword, generateToken } from '@/lib/auth'
@@ -10,23 +9,23 @@ export async function POST(request) {
 
     // Validation
     if (!email || !password || !fullName) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'All fields are required' },
         { status: 400 }
       )
     }
 
     if (password.length < 6) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Password must be at least 6 characters' },
         { status: 400 }
       )
     }
 
     // Check if user already exists
-    const existingUser = usersDB.getByEmail(email)
+    const existingUser = await usersDB.getByEmail(email)
     if (existingUser) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'User already exists' },
         { status: 400 }
       )
@@ -34,7 +33,7 @@ export async function POST(request) {
 
     // Create user
     const hashedPassword = hashPassword(password)
-    const user = usersDB.create({
+    const user = await usersDB.create({
       email,
       password: hashedPassword,
       name: fullName,
@@ -47,11 +46,6 @@ export async function POST(request) {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
 
-    const response = NextResponse.json({
-      user: userWithoutPassword,
-      token,
-    })
-
     // Set HTTP-only cookie
     const cookieStore = await cookies()
     cookieStore.set('token', token, {
@@ -61,10 +55,14 @@ export async function POST(request) {
       maxAge: 60 * 60 * 24 * 7, // 7 days
     })
 
-    return response
+    // Return response with user data
+    return Response.json({
+      user: userWithoutPassword,
+      token,
+    }, { status: 201 })
   } catch (error) {
     console.error('Signup error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

@@ -1,14 +1,22 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { coursesDB, courseStatusHistoryDB } from '@/lib/db'
 
 // Get all instructor courses
 export async function GET(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -19,7 +27,7 @@ export async function GET(request) {
     const status = searchParams.get('status')
     const category = searchParams.get('category')
     
-    let courses = coursesDB.getByInstructorId(instructorId)
+    let courses = await coursesDB.getByInstructorId(instructorId)
     
     // Apply filters
     if (status) {
@@ -32,10 +40,10 @@ export async function GET(request) {
     // Sort by updated date (newest first)
     courses.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
     
-    return NextResponse.json({ courses })
+    return Response.json({ courses })
   } catch (error) {
     console.error('Get instructor courses error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -45,10 +53,19 @@ export async function GET(request) {
 // Create a new course
 export async function POST(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -69,13 +86,13 @@ export async function POST(request) {
 
     // Validation
     if (!title || !description) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Title and description are required' },
         { status: 400 }
       )
     }
 
-    const newCourse = coursesDB.create({
+    const newCourse = await coursesDB.create({
       instructorId: user.id,
       instructor: user.name || user.email,
       title: typeof title === 'string' ? { en: title, ar: title } : title,
@@ -93,7 +110,7 @@ export async function POST(request) {
     })
 
     // Create status history entry
-    courseStatusHistoryDB.create({
+    await courseStatusHistoryDB.create({
       courseId: newCourse.id,
       status: 'draft',
       changedBy: user.id,
@@ -101,10 +118,10 @@ export async function POST(request) {
       reason: 'Course created',
     })
 
-    return NextResponse.json({ course: newCourse }, { status: 201 })
+    return Response.json({ course: newCourse }, { status: 201 })
   } catch (error) {
     console.error('Create course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

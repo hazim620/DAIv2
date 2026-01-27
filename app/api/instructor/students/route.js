@@ -1,14 +1,22 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { enrollmentsDB, coursesDB, progressDB, usersDB } from '@/lib/db'
 
 // Get all students for instructor's courses
 export async function GET(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -19,22 +27,22 @@ export async function GET(request) {
     const courseId = searchParams.get('courseId')
     
     // Get instructor's courses
-    const instructorCourses = coursesDB.getByInstructorId(instructorId)
+    const instructorCourses = await coursesDB.getByInstructorId(instructorId)
     
     if (courseId) {
       // Get students for a specific course
-      const course = coursesDB.getById(courseId)
+      const course = await coursesDB.getById(courseId)
       if (!course || course.instructorId !== instructorId) {
-        return NextResponse.json(
+        return Response.json(
           { error: 'Course not found or unauthorized' },
           { status: 404 }
         )
       }
 
-      const enrollments = enrollmentsDB.getByCourseId(courseId)
-      const students = enrollments.map(enrollment => {
-        const student = usersDB.getById(enrollment.userId)
-        const progress = progressDB.getByEnrollment(enrollment.id)
+      const enrollments = await enrollmentsDB.getByCourseId(courseId)
+      const students = await Promise.all(enrollments.map(async (enrollment) => {
+        const student = await usersDB.getById(enrollment.userId)
+        const progressData = await progressDB.getByEnrollment(enrollment.id)
         
         // Calculate completion percentage
         const totalVideos = course.sections?.reduce((sum, section) => 
@@ -56,9 +64,9 @@ export async function GET(request) {
           completionPercentage,
           lastActivity: enrollment.updatedAt,
         }
-      })
+      }))
 
-      return NextResponse.json({ 
+      return Response.json({ 
         course: {
           id: course.id,
           title: course.title,
@@ -69,10 +77,10 @@ export async function GET(request) {
       // Get all students across all courses
       const allStudents = []
       
-      instructorCourses.forEach(course => {
-        const enrollments = enrollmentsDB.getByCourseId(course.id)
-        enrollments.forEach(enrollment => {
-          const student = usersDB.getById(enrollment.userId)
+      for (const course of instructorCourses) {
+        const enrollments = await enrollmentsDB.getByCourseId(course.id)
+        for (const enrollment of enrollments) {
+          const student = await usersDB.getById(enrollment.userId)
           if (student) {
             allStudents.push({
               courseId: course.id,
@@ -84,14 +92,14 @@ export async function GET(request) {
               progress: enrollment.progress || 0,
             })
           }
-        })
-      })
+        }
+      }
 
-      return NextResponse.json({ students: allStudents })
+      return Response.json({ students: allStudents })
     }
   } catch (error) {
     console.error('Get students error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

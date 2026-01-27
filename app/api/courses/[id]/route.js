@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { coursesDB } from '@/lib/db'
 
 export async function GET(request, { params }) {
@@ -7,10 +6,10 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url)
     const locale = searchParams.get('locale') || 'en'
     
-    const course = coursesDB.getById(id)
+    const course = await coursesDB.getById(id)
     
     if (!course) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course not found' },
         { status: 404 }
       )
@@ -31,10 +30,10 @@ export async function GET(request, { params }) {
       })),
     }
 
-    return NextResponse.json({ course: formattedCourse })
+    return Response.json({ course: formattedCourse })
   } catch (error) {
     console.error('Get course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -47,7 +46,7 @@ export async function DELETE(request, { params }) {
     const { coursesDB } = await import('@/lib/db')
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -55,18 +54,18 @@ export async function DELETE(request, { params }) {
 
     // Check if user is admin
     if (authResult.user.role !== 'admin') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
     const { id } = params
-    coursesDB.delete(id)
-    return NextResponse.json({ message: 'Course deleted successfully' })
+    await coursesDB.delete(id)
+    return Response.json({ message: 'Course deleted successfully' })
   } catch (error) {
     console.error('Delete course error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

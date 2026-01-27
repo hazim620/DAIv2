@@ -13,6 +13,7 @@ import {
   FileText, MessageSquare, Bell, Settings, BarChart3,
   CheckCircle, Clock, AlertCircle, XCircle
 } from 'lucide-react'
+import { AnalyticsTab } from '@/components/instructor/analytics-tab'
 
 export default function InstructorDashboard() {
   const router = useRouter()
@@ -397,17 +398,7 @@ export default function InstructorDashboard() {
 
           {/* Analytics Tab */}
           {activeTab === 'analytics' && (
-            <div>
-              <h2 className="text-2xl font-bold mb-4">{locale === 'ar' ? 'التحليلات' : 'Analytics'}</h2>
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <BarChart3 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">
-                    {locale === 'ar' ? 'التحليلات التفصيلية قريباً' : 'Detailed analytics coming soon'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <AnalyticsTab locale={locale} />
           )}
         </div>
       </div>

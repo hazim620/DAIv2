@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { discussionsDB, usersDB } from '@/lib/db'
 
@@ -8,14 +7,14 @@ export async function GET(request) {
     const courseId = searchParams.get('courseId')
 
     if (!courseId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID is required' },
         { status: 400 }
       )
     }
 
-    const discussions = discussionsDB.getByCourseId(courseId)
-    const users = usersDB.getAll()
+    const discussions = await discussionsDB.getByCourseId(courseId)
+    const users = await usersDB.getAll()
 
     // Enrich discussions with user data
     const enrichedDiscussions = discussions.map(discussion => {
@@ -47,10 +46,10 @@ export async function GET(request) {
     // Sort by most recent first
     enrichedDiscussions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
-    return NextResponse.json({ discussions: enrichedDiscussions })
+    return Response.json({ discussions: enrichedDiscussions })
   } catch (error) {
     console.error('Get discussions error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -61,7 +60,7 @@ export async function POST(request) {
   try {
     const authResult = await requireAuth(request)
     if (authResult.error) {
-      return NextResponse.json(
+      return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
@@ -72,38 +71,38 @@ export async function POST(request) {
 
     // Handle like/unlike action
     if (action === 'like' && discussionId) {
-      const discussion = discussionsDB.toggleLike(discussionId, authResult.user.id)
-      return NextResponse.json({ discussion })
+      const discussion = await discussionsDB.toggleLike(discussionId, authResult.user.id)
+      return Response.json({ discussion })
     }
 
     // Handle reply
     if (discussionId && reply) {
-      const newReply = discussionsDB.addReply(discussionId, {
+      const newReply = await discussionsDB.addReply(discussionId, {
         userId: authResult.user.id,
         content: reply,
       })
-      return NextResponse.json({ reply: newReply }, { status: 201 })
+      return Response.json({ reply: newReply }, { status: 201 })
     }
 
     // Create new discussion
     if (!courseId || !title || !content) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID, title, and content are required' },
         { status: 400 }
       )
     }
 
-    const discussion = discussionsDB.create({
+    const discussion = await discussionsDB.create({
       userId: authResult.user.id,
       courseId: courseId.toString(),
       title,
       content,
     })
 
-    return NextResponse.json({ discussion }, { status: 201 })
+    return Response.json({ discussion }, { status: 201 })
   } catch (error) {
     console.error('Create discussion error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

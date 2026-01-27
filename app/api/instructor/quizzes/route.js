@@ -1,14 +1,22 @@
-import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { quizzesDB, coursesDB } from '@/lib/db'
 
 // Get all quizzes for instructor's courses
 export async function GET(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -20,10 +28,11 @@ export async function GET(request) {
     const lessonId = searchParams.get('lessonId')
     
     // Get instructor's courses
-    const instructorCourses = coursesDB.getByInstructorId(instructorId)
+    const instructorCourses = await coursesDB.getByInstructorId(instructorId)
     const courseIds = instructorCourses.map(c => c.id)
     
-    let quizzes = quizzesDB.getAll().filter(q => courseIds.includes(q.courseId))
+    const allQuizzes = await quizzesDB.getAll()
+    let quizzes = allQuizzes.filter(q => courseIds.includes(q.courseId))
     
     if (courseId) {
       quizzes = quizzes.filter(q => q.courseId === courseId)
@@ -33,10 +42,10 @@ export async function GET(request) {
       quizzes = quizzes.filter(q => q.lessonId === lessonId)
     }
 
-    return NextResponse.json({ quizzes })
+    return Response.json({ quizzes })
   } catch (error) {
     console.error('Get quizzes error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -46,10 +55,19 @@ export async function GET(request) {
 // Create a new quiz
 export async function POST(request) {
   try {
-    const user = await requireAuth(request)
+    const authResult = await requireAuth(request)
+    
+    if (authResult.error) {
+      return Response.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
+    const user = authResult.user
     
     if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized - Instructor access required' },
         { status: 403 }
       )
@@ -59,22 +77,22 @@ export async function POST(request) {
     const { courseId, lessonId, title, description, passingScore, timeLimit, questions } = body
 
     if (!courseId || !title) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course ID and title are required' },
         { status: 400 }
       )
     }
 
     // Verify instructor owns this course
-    const course = coursesDB.getById(courseId)
+    const course = await coursesDB.getById(courseId)
     if (!course || (course.instructorId !== user.id && user.role !== 'admin')) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Course not found or unauthorized' },
         { status: 404 }
       )
     }
 
-    const quiz = quizzesDB.create({
+    const quiz = await quizzesDB.create({
       courseId,
       lessonId: lessonId || null,
       title,
@@ -84,10 +102,10 @@ export async function POST(request) {
       questions: questions || [],
     })
 
-    return NextResponse.json({ quiz }, { status: 201 })
+    return Response.json({ quiz }, { status: 201 })
   } catch (error) {
     console.error('Create quiz error:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

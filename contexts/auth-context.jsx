@@ -42,16 +42,17 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
-
-      if (response.ok) {
-        setUser(data.user)
-        return { success: true, user: data.user }
-      } else {
-        return { success: false, error: data.error }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
+        return { success: false, error: data.error || `HTTP ${response.status}` }
       }
+
+      const data = await response.json()
+      setUser(data.user)
+      return { success: true, user: data.user }
     } catch (error) {
-      return { success: false, error: 'Network error' }
+      console.error('Login fetch error:', error)
+      return { success: false, error: `Network error: ${error.message}` }
     }
   }
 
