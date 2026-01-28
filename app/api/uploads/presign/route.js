@@ -17,6 +17,14 @@ function requireEnv(name) {
   return v
 }
 
+function requireAnyEnv(names) {
+  for (const n of names) {
+    const v = getEnv(n)
+    if (v) return { name: n, value: v }
+  }
+  throw new Error(`Missing environment variable: ${names[0]}`)
+}
+
 function safeFilename(name) {
   const base = String(name || 'file')
     .replace(/[/\\?%*:|"<>]/g, '-') // windows + url unsafe
@@ -60,7 +68,8 @@ export async function POST(request) {
       return Response.json({ error: 'filename and contentType are required' }, { status: 400 })
     }
 
-    const region = requireEnv('APP_AWS_REGION')
+    // Prefer APP_* vars, but fall back to AWS-provided region vars if present in runtime.
+    const region = requireAnyEnv(['APP_AWS_REGION', 'AWS_REGION', 'AWS_DEFAULT_REGION']).value
     const bucket = requireEnv('APP_S3_BUCKET')
     const cloudfrontDomain = requireEnv('APP_CLOUDFRONT_DOMAIN')
 
@@ -104,8 +113,17 @@ export async function POST(request) {
     const msg = error?.message || null
     // Surface config errors clearly (safe: only env var name)
     if (msg && msg.startsWith('Missing environment variable:')) {
+      const envPresence = {
+        APP_AWS_REGION: !!process.env.APP_AWS_REGION,
+        AWS_REGION: !!process.env.AWS_REGION,
+        AWS_DEFAULT_REGION: !!process.env.AWS_DEFAULT_REGION,
+        APP_S3_BUCKET: !!process.env.APP_S3_BUCKET,
+        APP_CLOUDFRONT_DOMAIN: !!process.env.APP_CLOUDFRONT_DOMAIN,
+        APP_AWS_ACCESS_KEY_ID: !!process.env.APP_AWS_ACCESS_KEY_ID,
+        APP_AWS_SECRET_ACCESS_KEY: !!process.env.APP_AWS_SECRET_ACCESS_KEY,
+      }
       return Response.json(
-        { error: 'Upload presign is not configured', details: msg },
+        { error: 'Upload presign is not configured', details: msg, envPresence },
         { status: 500 }
       )
     }
