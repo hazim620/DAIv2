@@ -68,10 +68,15 @@ export async function POST(request) {
       return Response.json({ error: 'filename and contentType are required' }, { status: 400 })
     }
 
-    // Prefer APP_* vars, but fall back to AWS-provided region vars if present in runtime.
-    const region = requireAnyEnv(['APP_AWS_REGION', 'AWS_REGION', 'AWS_DEFAULT_REGION']).value
-    const bucket = requireEnv('APP_S3_BUCKET')
-    const cloudfrontDomain = requireEnv('APP_CLOUDFRONT_DOMAIN')
+    // Prefer APP_* vars, but fall back to common Amplify/Next patterns.
+    const region = requireAnyEnv([
+      'APP_AWS_REGION',
+      'NEXT_PUBLIC_APP_AWS_REGION',
+      'AWS_REGION',
+      'AWS_DEFAULT_REGION',
+    ]).value
+    const bucket = requireAnyEnv(['APP_S3_BUCKET', 'NEXT_PUBLIC_APP_S3_BUCKET']).value
+    const cloudfrontDomain = requireAnyEnv(['APP_CLOUDFRONT_DOMAIN', 'NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN']).value
 
     const accessKeyId = requireEnv('APP_AWS_ACCESS_KEY_ID')
     const secretAccessKey = requireEnv('APP_AWS_SECRET_ACCESS_KEY')
@@ -115,10 +120,13 @@ export async function POST(request) {
     if (msg && msg.startsWith('Missing environment variable:')) {
       const envPresence = {
         APP_AWS_REGION: !!process.env.APP_AWS_REGION,
+        NEXT_PUBLIC_APP_AWS_REGION: !!process.env.NEXT_PUBLIC_APP_AWS_REGION,
         AWS_REGION: !!process.env.AWS_REGION,
         AWS_DEFAULT_REGION: !!process.env.AWS_DEFAULT_REGION,
         APP_S3_BUCKET: !!process.env.APP_S3_BUCKET,
+        NEXT_PUBLIC_APP_S3_BUCKET: !!process.env.NEXT_PUBLIC_APP_S3_BUCKET,
         APP_CLOUDFRONT_DOMAIN: !!process.env.APP_CLOUDFRONT_DOMAIN,
+        NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN: !!process.env.NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN,
         APP_AWS_ACCESS_KEY_ID: !!process.env.APP_AWS_ACCESS_KEY_ID,
         APP_AWS_SECRET_ACCESS_KEY: !!process.env.APP_AWS_SECRET_ACCESS_KEY,
       }
