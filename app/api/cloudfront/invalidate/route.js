@@ -14,13 +14,23 @@ export async function POST(request) {
     const distributionId = process.env.CLOUDFRONT_DISTRIBUTION_ID || 'EGYXGZXQ4IAXY'
     const region = process.env.APP_AWS_REGION || 'me-south-1'
 
-    const client = new CloudFrontClient({ 
-      region,
-      credentials: {
+    // Use explicit credentials if provided, otherwise AWS SDK will use default credential chain
+    // (IAM role in Amplify, or local AWS credentials via ~/.aws/credentials)
+    const clientConfig = { region }
+    
+    if (process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY) {
+      clientConfig.credentials = {
         accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY,
       }
-    })
+    }
+    // If credentials are not provided, AWS SDK will automatically use:
+    // 1. IAM role credentials (in Amplify/Lambda)
+    // 2. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    // 3. Shared credentials file (~/.aws/credentials)
+    // 4. EC2 instance metadata
+
+    const client = new CloudFrontClient(clientConfig)
 
     const command = new CreateInvalidationCommand({
       DistributionId: distributionId,
@@ -42,8 +52,20 @@ export async function POST(request) {
     })
   } catch (error) {
     console.error('CloudFront invalidation error:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      distributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID || 'EGYXGZXQ4IAXY',
+      region: process.env.APP_AWS_REGION || 'me-south-1',
+      hasCredentials: !!(process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY),
+    })
     return Response.json({ 
-      error: error.message || 'Failed to invalidate CloudFront cache' 
+      error: error.message || 'Failed to invalidate CloudFront cache',
+      details: process.env.NODE_ENV === 'development' ? {
+        code: error.code,
+        name: error.name,
+      } : undefined
     }, { status: 500 })
   }
 }
