@@ -15,6 +15,7 @@ import {
   File, BookOpen, ChevronRight, ChevronLeft, Play, GripVertical, Lock, Clock
 } from 'lucide-react'
 import Link from 'next/link'
+import { uploadToS3Direct } from '@/lib/aws/browser-s3-upload'
 
 export default function NewCoursePage({ initialCourseId = null, initialFormData = null, initialStep = 1 }) {
   const router = useRouter()
@@ -65,36 +66,16 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   const totalSteps = 3
 
   const uploadToS3 = async ({ kind, fileOrBlob, filename, contentType, courseId: cid, sectionId }) => {
-    const res = await fetch('/api/uploads/presign', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kind,
-        filename,
-        contentType,
-        courseId: cid || null,
-        sectionId: sectionId || null,
-      }),
+    // Direct browser -> S3 upload (no Lambda, no server presign).
+    // Requires Cognito Identity Pool env vars (NEXT_PUBLIC_*) to be set.
+    return await uploadToS3Direct({
+      kind,
+      fileOrBlob,
+      filename,
+      contentType,
+      courseId: cid || null,
+      sectionId: sectionId || null,
     })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      const details = data?.details ? ` (${data.details})` : ''
-      const extra = data?.name || data?.code ? ` [${[data?.name, data?.code].filter(Boolean).join(' / ')}]` : ''
-      throw new Error((data?.error || 'Failed to presign upload') + details + extra)
-    }
-
-    const { key, uploadUrl, publicUrl } = await res.json()
-    const putRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': contentType || 'application/octet-stream' },
-      body: fileOrBlob,
-    })
-    if (!putRes.ok) {
-      throw new Error(`Upload failed (${putRes.status})`)
-    }
-    return { key, publicUrl }
   }
 
   const dataUrlToBlob = (dataUrl) => {
@@ -347,7 +328,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       </div>
 
       <div>
-        <Label htmlFor="thumbnail">
+        <Label htmlFor="thumbnail-file-input">
           {locale === 'ar' ? 'صورة الدورة *' : 'Course Thumbnail *'}
         </Label>
         <div className="mt-1">
@@ -1078,7 +1059,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             </div>
                             <div className="space-y-2">
                               <div>
-                                <Label className="text-sm">
+                                <Label htmlFor={`video-upload-${video.id}`} className="text-sm">
                                   {locale === 'ar' ? 'رفع فيديو' : 'Upload Video'}
                                 </Label>
                                 <div
@@ -1253,10 +1234,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                   <div>
-                                    <Label className="text-sm">
+                                    <Label htmlFor={`quiz-passing-score-${finalQuiz.id}`} className="text-sm">
                                       {locale === 'ar' ? 'نقاط النجاح' : 'Passing Score'} (%)
                                     </Label>
                                     <Input
+                                      id={`quiz-passing-score-${finalQuiz.id}`}
                                       type="number"
                                       min="0"
                                       max="100"
@@ -1282,10 +1264,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-sm">
+                                    <Label htmlFor={`quiz-max-attempts-${finalQuiz.id}`} className="text-sm">
                                       {locale === 'ar' ? 'عدد المحاولات' : 'Max Attempts'}
                                     </Label>
                                     <Input
+                                      id={`quiz-max-attempts-${finalQuiz.id}`}
                                       type="number"
                                       min="1"
                                       value={finalQuiz.maxAttempts || 3}
@@ -1486,10 +1469,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                                 {locale === 'ar' ? 'الخيارات' : 'Choices'}
                                               </span>
                                               <div className="flex items-center gap-2">
-                                                <Label className="text-xs text-gray-600">
+                                                <Label htmlFor={`quiz-${finalQuiz.id}-question-${questionIdx}-choice-count`} className="text-xs text-gray-600">
                                                   {locale === 'ar' ? 'عدد الخيارات' : 'Count'}
                                                 </Label>
                                                 <Input
+                                                  id={`quiz-${finalQuiz.id}-question-${questionIdx}-choice-count`}
                                                   type="number"
                                                   min="2"
                                                   max="10"
@@ -1907,7 +1891,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                               </Button>
                             </div>
                             <div>
-                              <Label className="text-sm">
+                              <Label htmlFor={`pdf-upload-${pdf.id}`} className="text-sm">
                                 {locale === 'ar' ? 'رفع ملف' : 'Upload File'}
                               </Label>
                               <div
