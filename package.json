@@ -14,7 +14,9 @@
     "test-db": "node scripts/test-connection.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity": "^3.975.0",
     "@aws-sdk/client-s3": "^3.975.0",
+    "@aws-sdk/credential-providers": "^3.975.0",
     "@aws-sdk/s3-request-presigner": "^3.975.0",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",

@@ -15,7 +15,7 @@ import {
   File, BookOpen, ChevronRight, ChevronLeft, Play, GripVertical, Lock, Clock
 } from 'lucide-react'
 import Link from 'next/link'
-import { uploadToS3Direct } from '@/lib/aws/browser-s3-upload'
+import { uploadToS3Direct } from '@/lib/aws/browser-s3-upload.js'
 
 export default function NewCoursePage({ initialCourseId = null, initialFormData = null, initialStep = 1 }) {
   const router = useRouter()
