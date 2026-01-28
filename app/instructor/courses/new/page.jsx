@@ -24,6 +24,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [courseId, setCourseId] = useState(null)
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [expandedSectionId, setExpandedSectionId] = useState(null)
   const [dragOverSectionIndex, setDragOverSectionIndex] = useState(null)
   const [formData, setFormData] = useState({
@@ -62,6 +63,46 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   }, [initialCourseId, initialFormData])
 
   const totalSteps = 3
+
+  const uploadToS3 = async ({ kind, fileOrBlob, filename, contentType, courseId: cid, sectionId }) => {
+    const res = await fetch('/api/uploads/presign', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind,
+        filename,
+        contentType,
+        courseId: cid || null,
+        sectionId: sectionId || null,
+      }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.error || 'Failed to presign upload')
+    }
+
+    const { key, uploadUrl, publicUrl } = await res.json()
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType || 'application/octet-stream' },
+      body: fileOrBlob,
+    })
+    if (!putRes.ok) {
+      throw new Error(`Upload failed (${putRes.status})`)
+    }
+    return { key, publicUrl }
+  }
+
+  const dataUrlToBlob = (dataUrl) => {
+    const [meta, b64] = String(dataUrl).split(',')
+    const mime = (meta.match(/data:([^;]+);base64/i) || [])[1] || 'application/octet-stream'
+    const binary = atob(b64 || '')
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return { blob: new Blob([bytes], { type: mime }), mime }
+  }
 
   const contentKey = (type) => {
     if (type === 'quiz') return 'quizzes'
@@ -323,8 +364,24 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
               e.currentTarget.classList.remove('border-primary', 'bg-primary/5')
               const file = e.dataTransfer.files[0]
               if (file && file.type.startsWith('image/')) {
-                compressImage(file, (compressedDataUrl) => {
-                  setFormData(prev => ({ ...prev, thumbnail: compressedDataUrl }))
+                setUploadingThumbnail(true)
+                compressImage(file, async (compressedDataUrl) => {
+                  try {
+                    const { blob, mime } = dataUrlToBlob(compressedDataUrl)
+                    const { key, publicUrl } = await uploadToS3({
+                      kind: 'thumbnail',
+                      fileOrBlob: blob,
+                      filename: file.name || 'thumbnail.jpg',
+                      contentType: mime || 'image/jpeg',
+                      courseId,
+                    })
+                    setFormData(prev => ({ ...prev, thumbnail: publicUrl, thumbnailKey: key }))
+                  } catch (err) {
+                    console.error('Thumbnail upload error:', err)
+                    alert(locale === 'ar' ? 'فشل رفع الصورة' : 'Thumbnail upload failed')
+                  } finally {
+                    setUploadingThumbnail(false)
+                  }
                 })
               }
             }}
@@ -333,6 +390,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
             {formData.thumbnail ? (
               <div className="space-y-2">
                 <img src={formData.thumbnail} alt="Thumbnail" className="max-h-48 mx-auto rounded" />
+                {uploadingThumbnail && (
+                  <p className="text-sm text-gray-600">
+                    {locale === 'ar' ? 'جاري رفع الصورة...' : 'Uploading thumbnail...'}
+                  </p>
+                )}
                 <p className="text-sm text-gray-600">
                   {locale === 'ar' ? 'انقر لتغيير الصورة' : 'Click to change image'}
                 </p>
@@ -346,6 +408,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                 <p className="text-xs text-gray-500 mt-1">
                   {locale === 'ar' ? 'PNG, JPG, GIF حتى 5MB' : 'PNG, JPG, GIF up to 5MB'}
                 </p>
+                {uploadingThumbnail && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    {locale === 'ar' ? 'جاري رفع الصورة...' : 'Uploading thumbnail...'}
+                  </p>
+                )}
               </div>
             )}
             <input
@@ -356,8 +423,24 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
               onChange={(e) => {
                 const file = e.target.files[0]
                 if (file) {
-                  compressImage(file, (compressedDataUrl) => {
-                    setFormData(prev => ({ ...prev, thumbnail: compressedDataUrl }))
+                  setUploadingThumbnail(true)
+                  compressImage(file, async (compressedDataUrl) => {
+                    try {
+                      const { blob, mime } = dataUrlToBlob(compressedDataUrl)
+                      const { key, publicUrl } = await uploadToS3({
+                        kind: 'thumbnail',
+                        fileOrBlob: blob,
+                        filename: file.name || 'thumbnail.jpg',
+                        contentType: mime || 'image/jpeg',
+                        courseId,
+                      })
+                      setFormData(prev => ({ ...prev, thumbnail: publicUrl, thumbnailKey: key }))
+                    } catch (err) {
+                      console.error('Thumbnail upload error:', err)
+                      alert(locale === 'ar' ? 'فشل رفع الصورة' : 'Thumbnail upload failed')
+                    } finally {
+                      setUploadingThumbnail(false)
+                    }
                   })
                 }
               }}
@@ -678,54 +761,94 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       }))
     }
 
-    const handleVideoUpload = (sectionId, contentId, file) => {
-      if (file) {
-        // Validate file
-        const maxSize = 500 * 1024 * 1024 // 500MB
-        if (file.size > maxSize) {
-          alert(locale === 'ar' ? 'حجم الملف كبير جداً (الحد الأقصى 500MB)' : 'File too large (max 500MB)')
-          return
-        }
+    const handleVideoUpload = async (sectionId, contentId, file) => {
+      if (!file) return
 
-        if (!file.type.startsWith('video/')) {
-          alert(locale === 'ar' ? 'الملف يجب أن يكون فيديو' : 'File must be a video')
-          return
-        }
+      // Validate file
+      const maxSize = 500 * 1024 * 1024 // 500MB
+      if (file.size > maxSize) {
+        alert(locale === 'ar' ? 'حجم الملف كبير جداً (الحد الأقصى 500MB)' : 'File too large (max 500MB)')
+        return
+      }
+      if (!file.type.startsWith('video/')) {
+        alert(locale === 'ar' ? 'الملف يجب أن يكون فيديو' : 'File must be a video')
+        return
+      }
+      if (!courseId) {
+        alert(locale === 'ar' ? 'يرجى حفظ معلومات الدورة أولاً (التالي) قبل رفع الفيديو' : 'Please save course basics first (Next) before uploading videos')
+        return
+      }
 
-        // In production, upload to S3 here
-        // For now, create object URL for preview
-        const objectUrl = URL.createObjectURL(file)
-        updateContent(sectionId, contentId, 'video', {
-          file,
-          url: objectUrl,
-          fileName: file.name,
-          status: 'uploading',
+      updateContent(sectionId, contentId, 'video', {
+        fileName: file.name,
+        mimeType: file.type || '',
+        status: 'uploading',
+      })
+
+      try {
+        const { key, publicUrl } = await uploadToS3({
+          kind: 'video',
+          fileOrBlob: file,
+          filename: file.name,
+          contentType: file.type || 'video/mp4',
+          courseId,
+          sectionId,
         })
 
-        // Simulate upload
-        setTimeout(() => {
-          updateContent(sectionId, contentId, 'video', {
-            status: 'ready',
-          })
-        }, 2000)
+        updateContent(sectionId, contentId, 'video', {
+          url: publicUrl,
+          s3Key: key,
+          fileName: file.name,
+          mimeType: file.type || '',
+          status: 'ready',
+        })
+      } catch (err) {
+        console.error('Video upload error:', err)
+        updateContent(sectionId, contentId, 'video', { status: 'error' })
+        alert(locale === 'ar' ? 'فشل رفع الفيديو' : 'Video upload failed')
       }
     }
 
-    const handleFileUpload = (sectionId, contentId, file) => {
-      if (file) {
-        const maxSize = 100 * 1024 * 1024 // 100MB
-        if (file.size > maxSize) {
-          alert(locale === 'ar' ? 'حجم الملف كبير جداً (الحد الأقصى 100MB)' : 'File too large (max 100MB)')
-          return
-        }
+    const handleFileUpload = async (sectionId, contentId, file) => {
+      if (!file) return
 
-        const objectUrl = URL.createObjectURL(file)
+      const maxSize = 100 * 1024 * 1024 // 100MB
+      if (file.size > maxSize) {
+        alert(locale === 'ar' ? 'حجم الملف كبير جداً (الحد الأقصى 100MB)' : 'File too large (max 100MB)')
+        return
+      }
+      if (!courseId) {
+        alert(locale === 'ar' ? 'يرجى حفظ معلومات الدورة أولاً (التالي) قبل رفع الملفات' : 'Please save course basics first (Next) before uploading files')
+        return
+      }
+
+      updateContent(sectionId, contentId, 'pdf', {
+        fileName: file.name,
+        mimeType: file.type || '',
+        status: 'uploading',
+      })
+
+      try {
+        const { key, publicUrl } = await uploadToS3({
+          kind: 'file',
+          fileOrBlob: file,
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          courseId,
+          sectionId,
+        })
+
         updateContent(sectionId, contentId, 'pdf', {
-          file,
-          url: objectUrl,
+          url: publicUrl,
+          s3Key: key,
           fileName: file.name,
           mimeType: file.type || '',
+          status: 'ready',
         })
+      } catch (err) {
+        console.error('File upload error:', err)
+        updateContent(sectionId, contentId, 'pdf', { status: 'error' })
+        alert(locale === 'ar' ? 'فشل رفع الملف' : 'File upload failed')
       }
     }
 
@@ -1767,7 +1890,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                       newTitle[locale] = e.target.value
                                       updateContent(section.id, pdf.id, 'pdf', { title: newTitle })
                                     }}
-                                    placeholder={locale === 'ar' ? 'عنوان PDF *' : 'PDF title *'}
+                                    placeholder={locale === 'ar' ? 'عنوان الملف *' : 'File title *'}
                                     className="font-semibold"
                                     required
                                   />
@@ -1783,7 +1906,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             </div>
                             <div>
                               <Label className="text-sm">
-                                {locale === 'ar' ? 'رفع PDF' : 'Upload PDF'}
+                                {locale === 'ar' ? 'رفع ملف' : 'Upload File'}
                               </Label>
                               <div
                                 className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors mt-2"
