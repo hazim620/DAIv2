@@ -125,10 +125,63 @@ export async function POST(request) {
       CacheControl: cacheControl,
     })
 
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 10 }) // 10 minutes
-    const publicUrl = `https://${cloudfrontDomain}/${key}`
+    try {
+      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 10 }) // 10 minutes
+      const publicUrl = `https://${cloudfrontDomain}/${key}`
+      return Response.json({ key, uploadUrl, publicUrl })
+    } catch (innerError) {
+      // Amplify Next.js SSR can run without AWS credentials available to the runtime.
+      // If that happens, fall back to an external signer Lambda URL (regional) if configured.
+      const isCredsError =
+        innerError?.name === 'CredentialsProviderError' ||
+        String(innerError?.message || '').toLowerCase().includes('could not load credentials')
 
-    return Response.json({ key, uploadUrl, publicUrl })
+      const signerUrl = process.env.APP_PRESIGN_SERVICE_URL || null
+      const signerToken = process.env.APP_PRESIGN_SERVICE_TOKEN || null
+
+      if (isCredsError && signerUrl) {
+        if (!signerToken) {
+          return Response.json(
+            {
+              error: 'Upload presign is not configured',
+              details: 'Missing environment variable: APP_PRESIGN_SERVICE_TOKEN',
+              name: innerError?.name || null,
+            },
+            { status: 500 }
+          )
+        }
+
+        const signerRes = await fetch(signerUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${signerToken}`,
+          },
+          body: JSON.stringify({
+            kind,
+            filename,
+            contentType,
+            courseId: courseId || null,
+            sectionId: sectionId || null,
+          }),
+        })
+
+        const signerJson = await signerRes.json().catch(() => ({}))
+        if (!signerRes.ok) {
+          return Response.json(
+            {
+              error: 'Upload presign signer service failed',
+              details: signerJson?.error || signerJson?.details || `Signer HTTP ${signerRes.status}`,
+            },
+            { status: 502 }
+          )
+        }
+
+        return Response.json(signerJson)
+      }
+
+      throw innerError
+    }
   } catch (error) {
     console.error('Presign upload error:', error)
     const msg = error?.message || null
