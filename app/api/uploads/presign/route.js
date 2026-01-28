@@ -25,6 +25,14 @@ function requireAnyEnv(names) {
   throw new Error(`Missing environment variable: ${names[0]}`)
 }
 
+function optionalAnyEnv(names) {
+  for (const n of names) {
+    const v = getEnv(n)
+    if (v) return { name: n, value: v }
+  }
+  return { name: names[0], value: null }
+}
+
 function safeFilename(name) {
   const base = String(name || 'file')
     .replace(/[/\\?%*:|"<>]/g, '-') // windows + url unsafe
@@ -75,15 +83,23 @@ export async function POST(request) {
       'AWS_REGION',
       'AWS_DEFAULT_REGION',
     ]).value
-    const bucket = requireAnyEnv(['APP_S3_BUCKET', 'NEXT_PUBLIC_APP_S3_BUCKET']).value
-    const cloudfrontDomain = requireAnyEnv(['APP_CLOUDFRONT_DOMAIN', 'NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN']).value
+    // Amplify sometimes doesn't expose custom env vars to SSR runtime.
+    // Provide safe fallbacks so uploads can still work.
+    const bucket =
+      optionalAnyEnv(['APP_S3_BUCKET', 'NEXT_PUBLIC_APP_S3_BUCKET']).value ||
+      'dai-platform-media-prod'
+    const cloudfrontDomain =
+      optionalAnyEnv(['APP_CLOUDFRONT_DOMAIN', 'NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN']).value ||
+      'dph2pdp0ht6hr.cloudfront.net'
 
-    const accessKeyId = requireEnv('APP_AWS_ACCESS_KEY_ID')
-    const secretAccessKey = requireEnv('APP_AWS_SECRET_ACCESS_KEY')
+    const accessKeyId = process.env.APP_AWS_ACCESS_KEY_ID || null
+    const secretAccessKey = process.env.APP_AWS_SECRET_ACCESS_KEY || null
 
     const s3 = new S3Client({
       region,
-      credentials: { accessKeyId, secretAccessKey },
+      ...(accessKeyId && secretAccessKey
+        ? { credentials: { accessKeyId, secretAccessKey } }
+        : {}),
     })
 
     const uuid = crypto.randomUUID()
@@ -129,6 +145,9 @@ export async function POST(request) {
         NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN: !!process.env.NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN,
         APP_AWS_ACCESS_KEY_ID: !!process.env.APP_AWS_ACCESS_KEY_ID,
         APP_AWS_SECRET_ACCESS_KEY: !!process.env.APP_AWS_SECRET_ACCESS_KEY,
+        AWS_ACCESS_KEY_ID: !!process.env.AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: !!process.env.AWS_SECRET_ACCESS_KEY,
+        AWS_SESSION_TOKEN: !!process.env.AWS_SESSION_TOKEN,
       }
       return Response.json(
         { error: 'Upload presign is not configured', details: msg, envPresence },
