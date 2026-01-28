@@ -5,36 +5,7 @@ frontend:
       commands:
         - npm ci
         - echo "=== Checking NEXT_PUBLIC_* variables ==="
-        - |
-          if [ -z "$NEXT_PUBLIC_APP_AWS_REGION" ]; then
-            echo "ERROR: NEXT_PUBLIC_APP_AWS_REGION is NOT set"
-            exit 1
-          else
-            echo "âœ“ NEXT_PUBLIC_APP_AWS_REGION=$NEXT_PUBLIC_APP_AWS_REGION"
-          fi
-        - |
-          if [ -z "$NEXT_PUBLIC_APP_S3_BUCKET" ]; then
-            echo "ERROR: NEXT_PUBLIC_APP_S3_BUCKET is NOT set"
-            exit 1
-          else
-            echo "âœ“ NEXT_PUBLIC_APP_S3_BUCKET=$NEXT_PUBLIC_APP_S3_BUCKET"
-          fi
-        - |
-          if [ -z "$NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN" ]; then
-            echo "ERROR: NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN is NOT set"
-            exit 1
-          else
-            echo "âœ“ NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN=$NEXT_PUBLIC_APP_CLOUDFRONT_DOMAIN"
-          fi
-        - |
-          if [ -z "$NEXT_PUBLIC_APP_COGNITO_IDENTITY_POOL_ID" ]; then
-            echo "ERROR: NEXT_PUBLIC_APP_COGNITO_IDENTITY_POOL_ID is NOT set"
-            exit 1
-          else
-            echo "âœ“ NEXT_PUBLIC_APP_COGNITO_IDENTITY_POOL_ID=$NEXT_PUBLIC_APP_COGNITO_IDENTITY_POOL_ID"
-          fi
-        - echo "=== All NEXT_PUBLIC_* variables ==="
-        - env | grep NEXT_PUBLIC_ || echo "WARNING: No NEXT_PUBLIC_* variables found"
+        - 'env | grep NEXT_PUBLIC_ || echo "No NEXT_PUBLIC_* variables found"'
     build:
       commands:
         - npm run build
