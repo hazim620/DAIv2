@@ -1,0 +1,20 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        # Verify NEXT_PUBLIC_* variables are available (for debugging)
+        - echo "Checking NEXT_PUBLIC_* variables..."
+        - env | grep NEXT_PUBLIC_ || echo "No NEXT_PUBLIC_* variables found"
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
