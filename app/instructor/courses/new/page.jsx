@@ -80,7 +80,9 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Failed to presign upload')
+      const details = data?.details ? ` (${data.details})` : ''
+      const extra = data?.name || data?.code ? ` [${[data?.name, data?.code].filter(Boolean).join(' / ')}]` : ''
+      throw new Error((data?.error || 'Failed to presign upload') + details + extra)
     }
 
     const { key, uploadUrl, publicUrl } = await res.json()

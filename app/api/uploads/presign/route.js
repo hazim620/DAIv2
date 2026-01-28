@@ -3,6 +3,10 @@ import crypto from 'crypto'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
+// Ensure this route runs on Node.js (not Edge), because it uses Node crypto + AWS SDK signing.
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 function getEnv(name) {
   return process.env[name]
 }
@@ -97,8 +101,21 @@ export async function POST(request) {
     return Response.json({ key, uploadUrl, publicUrl })
   } catch (error) {
     console.error('Presign upload error:', error)
+    const msg = error?.message || null
+    // Surface config errors clearly (safe: only env var name)
+    if (msg && msg.startsWith('Missing environment variable:')) {
+      return Response.json(
+        { error: 'Upload presign is not configured', details: msg },
+        { status: 500 }
+      )
+    }
     return Response.json(
-      { error: 'Internal server error', details: error?.message || null },
+      {
+        error: 'Internal server error',
+        details: error?.message || null,
+        name: error?.name || null,
+        code: error?.code || null,
+      },
       { status: 500 }
     )
   }
