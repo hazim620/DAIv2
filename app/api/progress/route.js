@@ -1,5 +1,5 @@
 import { requireAuth } from '@/lib/auth'
-import { progressDB, enrollmentsDB } from '@/lib/db'
+import { progressDB, enrollmentsDB, coursesDB } from '@/lib/db'
 
 export async function POST(request) {
   try {
@@ -39,20 +39,24 @@ export async function POST(request) {
       duration || 0
     )
 
-    // Update enrollment progress
+    // Update enrollment progress: get course to count total videos
     const allProgress = await progressDB.getByEnrollment(enrollmentId)
-    const totalVideos = enrollment.course?.sections?.reduce(
-      (sum, section) => sum + section.videos.length,
+    const course = await coursesDB.getById(enrollment.courseId)
+    const totalVideos = (course?.sections || []).reduce(
+      (sum, section) => sum + (section.videos || []).length,
       0
-    ) || 0
-    const completedVideos = allProgress.filter(p => p.watched).length
-    const progressPercentage = totalVideos > 0 
-      ? Math.round((completedVideos / totalVideos) * 100)
+    )
+    const watchedCount = allProgress.filter(p => p.watched).length
+    const progressPercentage = totalVideos > 0
+      ? Math.round((watchedCount / totalVideos) * 100)
       : 0
+    const completedVideoIds = allProgress
+      .filter(p => p.watched)
+      .map(p => (p.videoId != null ? String(p.videoId) : p.videoId))
 
     await enrollmentsDB.update(enrollmentId, {
       progress: progressPercentage,
-      completedVideos: allProgress.filter(p => p.watched).map(p => p.videoId),
+      completedVideos: completedVideoIds,
     })
 
     return Response.json({ progress, progressPercentage })

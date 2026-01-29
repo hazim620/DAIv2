@@ -346,8 +346,12 @@ export default function InstructorDashboard() {
 
                     return (
                       <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                        <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                          <BookOpen className="h-16 w-16 text-primary/50" />
+                        <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center overflow-hidden">
+                          {course.thumbnail ? (
+                            <img src={course.thumbnail} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <BookOpen className="h-16 w-16 text-primary/50" />
+                          )}
                           <div className="absolute top-2 right-2">
                             {getStatusBadge(course.status)}
                           </div>

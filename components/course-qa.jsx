@@ -9,8 +9,9 @@ import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import { MessageSquare, HelpCircle } from 'lucide-react'
 
-export function CourseQA({ courseId }) {
+export function CourseQA({ courseId, instructorId }) {
   const { user } = useAuth()
+  const canAnswer = user && (user.id === instructorId || user.role === 'admin')
   const { locale, t } = useLanguage()
   const [qas, setQas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -182,8 +183,8 @@ export function CourseQA({ courseId }) {
                   </div>
                 )}
 
-                {/* Answer Form */}
-                {user && (
+                {/* Answer Form — only instructor (or admin) can answer */}
+                {canAnswer && (
                   <div className="mt-4">
                     {answerForms[qa.id] ? (
                       <div className="space-y-2">

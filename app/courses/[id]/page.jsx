@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
-import { PlayCircle, Lock, CheckCircle, Clock, Star, HelpCircle, MessageSquare } from 'lucide-react'
+import { PlayCircle, Lock, CheckCircle, Clock, Star, HelpCircle, MessageSquare, FileQuestion, BookOpen, File } from 'lucide-react'
+import { formatVideoDuration } from '@/lib/utils'
 import { CourseReviews } from '@/components/course-reviews'
 import { CourseQA } from '@/components/course-qa'
 import { CourseDiscussions } from '@/components/course-discussions'
@@ -97,8 +98,10 @@ export default function CourseDetailPage() {
     }
   }
 
+  const isInstructorOrAdmin = user && course && (course.instructorId === user.id || user.role === 'admin')
+
   const handleVideoClick = (video) => {
-    if (video.isFree || enrollment) {
+    if (video.isFree || enrollment || isInstructorOrAdmin) {
       router.push(`/courses/${courseId}/${video.id}`)
     } else {
       alert(
@@ -135,11 +138,27 @@ export default function CourseDetailPage() {
     )
   }
 
-  const totalVideos = course.sections.reduce((sum, section) => sum + section.videos.length, 0)
+  const totalVideos = course.sections.reduce((sum, section) => sum + (section.videos || []).length, 0)
   const freeVideos = course.sections.reduce(
-    (sum, section) => sum + section.videos.filter(v => v.isFree).length,
+    (sum, section) => sum + (section.videos || []).filter(v => v.isFree).length,
     0
   )
+
+  // Merge section contents in order (videos, quizzes, articles, pdfs) for display
+  const getSectionContents = (section) => {
+    let orderIndex = 0
+    const videos = (section.videos || []).map(v => ({ ...v, type: 'video', order: v.order !== undefined ? v.order : orderIndex++ }))
+    const quizzes = (section.quizzes || []).map(q => ({ ...q, type: 'quiz', order: q.order !== undefined ? q.order : orderIndex++ }))
+    const articles = (section.articles || []).map(a => ({ ...a, type: 'article', order: a.order !== undefined ? a.order : orderIndex++ }))
+    const pdfs = (section.pdfs || []).map(p => ({ ...p, type: 'pdf', order: p.order !== undefined ? p.order : orderIndex++ }))
+    return [...videos, ...quizzes, ...articles, ...pdfs].sort((a, b) => (a.order || 0) - (b.order || 0))
+  }
+
+  const getContentTitle = (content) => {
+    if (!content) return ''
+    const t = content.title
+    return typeof t === 'object' ? (t[locale] || t.en || '') : (t || '')
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -242,42 +261,90 @@ export default function CourseDetailPage() {
                       <div key={section.id} className="border rounded-lg p-4">
                         <h3 className="font-semibold text-lg mb-3">{section.title}</h3>
                         <div className="space-y-2">
-                          {section.videos.map((video) => {
-                            const canWatch = video.isFree || enrollment
-                            const isWatched = enrollment?.completedVideos?.includes(video.id.toString())
-
-                            return (
-                              <div
-                                key={video.id}
-                                className={`flex items-center justify-between p-3 rounded border cursor-pointer transition-colors ${
-                                  canWatch
-                                    ? 'hover:bg-gray-50 border-gray-200'
-                                    : 'opacity-60 border-gray-300'
-                                }`}
-                                onClick={() => handleVideoClick(video)}
-                              >
-                                <div className="flex items-center gap-3 flex-1">
-                                  {canWatch ? (
-                                    isWatched ? (
-                                      <CheckCircle className="h-5 w-5 text-green-600" />
+                          {getSectionContents(section).map((content) => {
+                            if (content.type === 'video') {
+                              const video = content
+                              const canWatch = video.isFree || enrollment || isInstructorOrAdmin
+                              const isWatched = enrollment?.completedVideos?.includes(video.id.toString())
+                              return (
+                                <div
+                                  key={video.id}
+                                  className={`flex items-center justify-between p-3 rounded border cursor-pointer transition-colors ${
+                                    canWatch ? 'hover:bg-gray-50 border-gray-200' : 'opacity-60 border-gray-300'
+                                  }`}
+                                  onClick={() => handleVideoClick(video)}
+                                >
+                                  <div className="flex items-center gap-3 flex-1">
+                                    {canWatch ? (
+                                      isWatched ? (
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
+                                      ) : (
+                                        <PlayCircle className="h-5 w-5 text-primary" />
+                                      )
                                     ) : (
-                                      <PlayCircle className="h-5 w-5 text-primary" />
-                                    )
-                                  ) : (
-                                    <Lock className="h-5 w-5 text-gray-400" />
-                                  )}
-                                  <div>
-                                    <p className="font-medium">{video.title}</p>
-                                    <p className="text-sm text-gray-500">{video.duration}</p>
+                                      <Lock className="h-5 w-5 text-gray-400" />
+                                    )}
+                                    <div>
+                                      <p className="font-medium">{getContentTitle(video)}</p>
+                                      <p className="text-sm text-gray-500">{formatVideoDuration(video.duration)}</p>
+                                    </div>
+                                    {video.isFree && (
+                                      <span className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                        {t('free')}
+                                      </span>
+                                    )}
                                   </div>
-                                  {video.isFree && (
-                                    <span className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                      {t('free')}
-                                    </span>
-                                  )}
                                 </div>
-                              </div>
-                            )
+                              )
+                            }
+                            if (content.type === 'quiz') {
+                              return (
+                                <div key={content.id} className="flex items-center gap-3 p-3 rounded border border-gray-200 bg-gray-50">
+                                  <FileQuestion className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                                  <p className="font-medium">{getContentTitle(content)}</p>
+                                  <span className="text-xs text-gray-500 ml-auto">{locale === 'ar' ? 'اختبار' : 'Quiz'}</span>
+                                </div>
+                              )
+                            }
+                            if (content.type === 'article') {
+                              return (
+                                <div key={content.id} className="flex items-start gap-3 p-3 rounded border border-gray-200 bg-gray-50">
+                                  <BookOpen className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium">{getContentTitle(content)}</p>
+                                    {content.content && (
+                                      <div
+                                        className="text-sm text-gray-600 mt-1 line-clamp-2"
+                                        dangerouslySetInnerHTML={{ __html: content.content }}
+                                      />
+                                    )}
+                                    <span className="text-xs text-gray-500">{locale === 'ar' ? 'مقال' : 'Article'}</span>
+                                  </div>
+                                </div>
+                              )
+                            }
+                            if (content.type === 'pdf') {
+                              const pdfUrl = content.url ?? content.file
+                              return (
+                                <div key={content.id} className="flex items-center gap-3 p-3 rounded border border-gray-200 bg-gray-50">
+                                  <File className="h-5 w-5 text-red-600 flex-shrink-0" />
+                                  {pdfUrl ? (
+                                    <a
+                                      href={pdfUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-medium text-primary hover:underline"
+                                    >
+                                      {getContentTitle(content)}
+                                    </a>
+                                  ) : (
+                                    <p className="font-medium">{getContentTitle(content)}</p>
+                                  )}
+                                  <span className="text-xs text-gray-500 ml-auto">{locale === 'ar' ? 'ملف' : 'File'}</span>
+                                </div>
+                              )
+                            }
+                            return null
                           })}
                         </div>
                       </div>
@@ -292,7 +359,7 @@ export default function CourseDetailPage() {
               )}
 
               {activeTab === 'qa' && (
-                <CourseQA courseId={courseId} />
+                <CourseQA courseId={courseId} instructorId={course?.instructorId} />
               )}
 
               {activeTab === 'discussions' && (
@@ -304,10 +371,23 @@ export default function CourseDetailPage() {
             <div className="lg:col-span-1">
               <Card className="sticky top-4">
                 <CardHeader>
-                  <CardTitle className="text-2xl">${course.price}</CardTitle>
-                  <CardDescription>
-                    {locale === 'ar' ? 'سعر الدورة' : 'Course Price'}
-                  </CardDescription>
+                  {isInstructorOrAdmin ? (
+                    <>
+                      <CardTitle className="text-xl">
+                        {locale === 'ar' ? 'عرض الدورة' : 'View Course'}
+                      </CardTitle>
+                      <CardDescription>
+                        {locale === 'ar' ? 'أنت مدرب هذه الدورة — عرض المحتوى بدون تسجيل' : 'You teach this course — view content without enrolling'}
+                      </CardDescription>
+                    </>
+                  ) : (
+                    <>
+                      <CardTitle className="text-2xl">${course.price}</CardTitle>
+                      <CardDescription>
+                        {locale === 'ar' ? 'سعر الدورة' : 'Course Price'}
+                      </CardDescription>
+                    </>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -327,7 +407,7 @@ export default function CourseDetailPage() {
                       </span>
                       <span className="font-medium">{course.duration}</span>
                     </div>
-                    {enrollment && (
+                    {enrollment && !isInstructorOrAdmin && (
                       <div className="pt-2 border-t">
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600">
@@ -345,7 +425,13 @@ export default function CourseDetailPage() {
                     )}
                   </div>
                   <div className="pt-4 border-t">
-                    {enrollment ? (
+                    {isInstructorOrAdmin ? (
+                      <Link href={course.sections[0]?.videos[0]?.id ? `/courses/${courseId}/${course.sections[0].videos[0].id}` : '#'}>
+                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                          {locale === 'ar' ? 'عرض المحتوى' : 'View Content'}
+                        </Button>
+                      </Link>
+                    ) : enrollment ? (
                       <Link href={`/courses/${courseId}/${course.sections[0]?.videos[0]?.id || ''}`}>
                         <Button className="w-full">
                           {locale === 'ar' ? 'متابعة التعلم' : 'Continue Learning'}
@@ -357,11 +443,13 @@ export default function CourseDetailPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-xs text-center text-gray-500">
-                    {locale === 'ar'
-                      ? 'يمكنك مشاهدة الفيديو الأول مجاناً'
-                      : 'You can watch the first video for free'}
-                  </p>
+                  {!isInstructorOrAdmin && (
+                    <p className="text-xs text-center text-gray-500">
+                      {locale === 'ar'
+                        ? 'يمكنك مشاهدة الفيديو الأول مجاناً'
+                        : 'You can watch the first video for free'}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>

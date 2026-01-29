@@ -31,7 +31,12 @@ export default function LoginPage() {
     const result = await login(formData.email, formData.password)
     
     if (result.success) {
-      router.push('/dashboard')
+      const role = result.user?.role
+      if (role === 'instructor' || role === 'admin') {
+        router.push('/instructor')
+      } else {
+        router.push('/dashboard')
+      }
     } else {
       setError(result.error || 'Login failed')
     }
@@ -114,13 +119,23 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? t('loading') : t('login')}
               </Button>
-              <div className="text-center text-sm">
-                <span className="text-gray-600">
-                  {t('dontHaveAccount')}{' '}
-                </span>
-                <Link href="/signup" className="text-primary hover:underline font-medium">
-                  {t('signup')}
-                </Link>
+              <div className="text-center space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-600">
+                    {t('dontHaveAccount')}{' '}
+                  </span>
+                  <Link href="/signup" className="text-primary hover:underline font-medium">
+                    {t('signup')}
+                  </Link>
+                </div>
+                <div className="pt-2 border-t border-gray-100">
+                  <span className="text-gray-600">
+                    {locale === 'ar' ? 'تريد التدريس؟ ' : 'Want to teach? '}
+                  </span>
+                  <Link href="/instructor/signup" className="text-primary hover:underline font-medium">
+                    {locale === 'ar' ? 'انضم كمدرب' : 'Join as instructor'}
+                  </Link>
+                </div>
               </div>
             </form>
           </CardContent>

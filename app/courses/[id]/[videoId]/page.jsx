@@ -9,6 +9,7 @@ import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import { PlayCircle, Lock, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react'
+import { formatVideoDuration } from '@/lib/utils'
 
 export default function VideoPlayerPage() {
   const params = useParams()
@@ -85,7 +86,7 @@ export default function VideoPlayerPage() {
     if (!enrollment || !currentVideo) return
 
     // Mark video as watched
-    await fetch('/api/progress', {
+    const res = await fetch('/api/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -96,8 +97,8 @@ export default function VideoPlayerPage() {
       }),
     })
 
-    // Refresh enrollment to update progress
-    fetchEnrollment()
+    // Refresh enrollment so progress bar and checkmarks update
+    if (res.ok) await fetchEnrollment()
   }
 
   const handleTimeUpdate = async (currentTime, duration) => {
@@ -183,7 +184,8 @@ export default function VideoPlayerPage() {
     )
   }
 
-  const canWatch = currentVideo.isFree || enrollment
+  const isInstructorOrAdmin = user && course && (course.instructorId === user.id || user.role === 'admin')
+  const canWatch = currentVideo.isFree || enrollment || isInstructorOrAdmin
   const nextVideo = getNextVideo()
   const prevVideo = getPrevVideo()
 
@@ -294,7 +296,7 @@ export default function VideoPlayerPage() {
                                     : 'hover:bg-gray-100'
                                 }`}
                               >
-                                {video.isFree || enrollment ? (
+                                {video.isFree || enrollment || isInstructorOrAdmin ? (
                                   isWatched ? (
                                     <CheckCircle className="h-4 w-4" />
                                   ) : (
@@ -304,7 +306,7 @@ export default function VideoPlayerPage() {
                                   <Lock className="h-4 w-4" />
                                 )}
                                 <span className="text-sm flex-1">{video.title}</span>
-                                <span className="text-xs opacity-70">{video.duration}</span>
+                                <span className="text-xs opacity-70">{formatVideoDuration(video.duration)}</span>
                               </Link>
                             )
                           })}

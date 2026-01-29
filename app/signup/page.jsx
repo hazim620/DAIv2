@@ -153,13 +153,23 @@ export default function SignupPage() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? t('loading') : t('createAccount')}
               </Button>
-              <div className="text-center text-sm">
-                <span className="text-gray-600">
-                  {t('alreadyHaveAccount')}{' '}
-                </span>
-                <Link href="/login" className="text-primary hover:underline font-medium">
-                  {t('login')}
-                </Link>
+              <div className="text-center space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-600">
+                    {t('alreadyHaveAccount')}{' '}
+                  </span>
+                  <Link href="/login" className="text-primary hover:underline font-medium">
+                    {t('login')}
+                  </Link>
+                </div>
+                <div className="pt-2 border-t border-gray-100">
+                  <span className="text-gray-600">
+                    {locale === 'ar' ? 'تريد التدريس؟ ' : 'Want to teach? '}
+                  </span>
+                  <Link href="/instructor/signup" className="text-primary hover:underline font-medium">
+                    {locale === 'ar' ? 'انضم كمدرب' : 'Join as instructor'}
+                  </Link>
+                </div>
               </div>
             </form>
           </CardContent>

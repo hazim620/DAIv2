@@ -1,5 +1,14 @@
 import { requireAuth } from '@/lib/auth'
 import { coursesDB } from '@/lib/db'
+import { formatCourseDuration } from '@/lib/utils'
+
+function totalDurationSecondsFromSections(sections) {
+  if (!Array.isArray(sections)) return 0
+  return sections.reduce((sum, section) => {
+    const sectionSeconds = (section.videos || []).reduce((s, v) => s + (Number(v.duration) || 0), 0)
+    return sum + sectionSeconds
+  }, 0)
+}
 
 export async function GET(request) {
   try {
@@ -9,19 +18,23 @@ export async function GET(request) {
     const courses = await coursesDB.getAll()
     
     // Format courses for the requested locale
-    const formattedCourses = courses.map(course => ({
-      ...course,
-      title: course.title[locale] || course.title.en,
-      description: course.description[locale] || course.description.en,
-      sections: course.sections.map(section => ({
-        ...section,
-        title: section.title[locale] || section.title.en,
-        videos: section.videos.map(video => ({
-          ...video,
-          title: video.title[locale] || video.title.en,
+    const formattedCourses = courses.map(course => {
+      const duration = course.duration || formatCourseDuration(totalDurationSecondsFromSections(course.sections))
+      return {
+        ...course,
+        duration,
+        title: course.title[locale] || course.title.en,
+        description: course.description[locale] || course.description.en,
+        sections: course.sections.map(section => ({
+          ...section,
+          title: section.title[locale] || section.title.en,
+          videos: (section.videos || []).map(video => ({
+            ...video,
+            title: video.title[locale] || video.title.en,
+          })),
         })),
-      })),
-    }))
+      }
+    })
 
     return Response.json({ courses: formattedCourses })
   } catch (error) {

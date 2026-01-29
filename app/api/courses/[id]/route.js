@@ -1,4 +1,13 @@
 import { coursesDB } from '@/lib/db'
+import { formatCourseDuration } from '@/lib/utils'
+
+function totalDurationSecondsFromSections(sections) {
+  if (!Array.isArray(sections)) return 0
+  return sections.reduce((sum, section) => {
+    const sectionSeconds = (section.videos || []).reduce((s, v) => s + (Number(v.duration) || 0), 0)
+    return sum + sectionSeconds
+  }, 0)
+}
 
 export async function GET(request, { params }) {
   try {
@@ -15,20 +24,42 @@ export async function GET(request, { params }) {
       )
     }
 
-    // Format course for the requested locale
+    const duration = course.duration || formatCourseDuration(totalDurationSecondsFromSections(course.sections))
+    const { searchParams } = new URL(request.url)
+    const videosOnly = searchParams.get('videosOnly') === 'true'
+
+    const mapSection = (section) => ({
+      ...section,
+      title: section.title[locale] || section.title.en,
+      videos: (section.videos || []).map(video => ({
+        ...video,
+        title: video.title[locale] || video.title.en,
+        videoUrl: video.url ?? video.videoUrl,
+        duration: video.duration ?? 0,
+      })),
+    })
+
+    // Student-facing: only videos in sections (no quiz/article/pdf). Instructor/preview gets full sections.
+    const sections = videosOnly
+      ? course.sections.map(section => ({
+          id: section.id,
+          title: section.title[locale] || section.title.en,
+          isFreePreview: section.isFreePreview || false,
+          videos: (section.videos || []).map(video => ({
+            ...video,
+            title: video.title[locale] || video.title.en,
+            videoUrl: video.url ?? video.videoUrl,
+            duration: video.duration ?? 0,
+          })),
+        }))
+      : course.sections.map(mapSection)
+
     const formattedCourse = {
       ...course,
+      duration,
       title: course.title[locale] || course.title.en,
       description: course.description[locale] || course.description.en,
-      sections: course.sections.map(section => ({
-        ...section,
-        title: section.title[locale] || section.title.en,
-        videos: section.videos.map(video => ({
-          ...video,
-          title: video.title[locale] || video.title.en,
-          videoUrl: video.url ?? video.videoUrl,
-        })),
-      })),
+      sections,
     }
 
     return Response.json({ course: formattedCourse })

@@ -1,5 +1,5 @@
 import { requireAuth } from '@/lib/auth'
-import { qaDB, usersDB } from '@/lib/db'
+import { qaDB, usersDB, coursesDB } from '@/lib/db'
 
 export async function GET(request) {
   try {
@@ -65,12 +65,38 @@ export async function POST(request) {
     const body = await request.json()
     const { courseId, question, questionId, answer } = body
 
-    // If questionId is provided, it's an answer
+    // If questionId is provided, it's an answer — only course instructor (or admin) may answer
     if (questionId) {
       if (!answer) {
         return Response.json(
           { error: 'Answer is required' },
           { status: 400 }
+        )
+      }
+
+      const question = await qaDB.getById(questionId)
+      if (!question) {
+        return Response.json(
+          { error: 'Question not found' },
+          { status: 404 }
+        )
+      }
+
+      const course = await coursesDB.getById(question.courseId)
+      if (!course) {
+        return Response.json(
+          { error: 'Course not found' },
+          { status: 404 }
+        )
+      }
+
+      const isInstructorOrAdmin =
+        course.instructorId === authResult.user.id ||
+        authResult.user.role === 'admin'
+      if (!isInstructorOrAdmin) {
+        return Response.json(
+          { error: 'Only the course instructor can answer questions' },
+          { status: 403 }
         )
       }
 

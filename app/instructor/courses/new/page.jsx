@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,44 @@ import { useLanguage } from '@/contexts/language-context'
 import { 
   ArrowLeft, Save, Plus, Trash2, Eye, Upload, FileText, 
   Video, FileQuestion, CheckCircle, AlertCircle, XCircle,
-  File, BookOpen, ChevronRight, ChevronLeft, Play, GripVertical, Lock, Clock
+  File, BookOpen, ChevronRight, ChevronLeft, Play, GripVertical, Lock, Clock,
+  Bold, Italic, Underline, List, ListOrdered
 } from 'lucide-react'
 import Link from 'next/link'
 import { uploadToS3Direct } from '@/lib/aws/browser-s3-upload.js'
+
+function ArticleRichEditor({ articleId, sectionId, content, locale, updateContent }) {
+  const editorRef = useRef(null)
+  const lastContentRef = useRef(content)
+  useEffect(() => {
+    if (!editorRef.current) return
+    if (lastContentRef.current === content && editorRef.current.innerHTML) return
+    lastContentRef.current = content
+    editorRef.current.innerHTML = content || ''
+  }, [articleId, content])
+
+  const syncContent = useCallback(() => {
+    if (!editorRef.current) return
+    const html = editorRef.current.innerHTML
+    if (html === lastContentRef.current) return
+    lastContentRef.current = html
+    updateContent(sectionId, articleId, 'article', { content: html })
+  }, [sectionId, articleId, updateContent])
+
+  return (
+    <div
+      ref={editorRef}
+      id={`article-editor-${articleId}`}
+      contentEditable
+      suppressContentEditableWarning
+      className="w-full min-h-[120px] px-3 py-2 border rounded-b-md rounded-t-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+      style={{ fontSize: '16px' }}
+      data-placeholder={locale === 'ar' ? 'محتوى المقال...' : 'Article content...'}
+      onBlur={syncContent}
+      onInput={syncContent}
+    />
+  )
+}
 
 export default function NewCoursePage({ initialCourseId = null, initialFormData = null, initialStep = 1 }) {
   const router = useRouter()
@@ -1003,7 +1037,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', `${section.id}-${video.id}-${contentIdx}`)
+                            e.dataTransfer.setData('text/plain', [section.id, video.id, contentIdx].join('|'))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1021,9 +1055,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
                             const data = e.dataTransfer.getData('text/plain')
                             if (data) {
-                              const [sourceSectionId, sourceContentId, sourceIndex] = data.split('-')
-                              if (sourceSectionId === section.id && parseInt(sourceIndex) !== contentIdx) {
-                                reorderContent(section.id, parseInt(sourceIndex), contentIdx)
+                              const parts = data.split('|')
+                              if (parts.length >= 3 && parts[0] === section.id) {
+                                const sourceIndex = parseInt(parts[2], 10)
+                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                  reorderContent(section.id, sourceIndex, contentIdx)
+                                }
                               }
                             }
                           }}
@@ -1076,8 +1113,17 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault()
-                                    e.stopPropagation()
                                     e.currentTarget.classList.remove('border-primary', 'bg-primary/5')
+                                    const data = e.dataTransfer.getData('text/plain')
+                                    const parts = data ? data.split('|') : []
+                                    if (parts.length >= 3 && parts[0] === section.id) {
+                                      const sourceIndex = parseInt(parts[2], 10)
+                                      if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                        reorderContent(section.id, sourceIndex, contentIdx)
+                                      }
+                                      return
+                                    }
+                                    e.stopPropagation()
                                     const file = e.dataTransfer.files[0]
                                     if (file && file.type.startsWith('video/')) {
                                       handleVideoUpload(section.id, video.id, file)
@@ -1174,7 +1220,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', `${section.id}-${finalQuiz.id}-${contentIdx}`)
+                            e.dataTransfer.setData('text/plain', [section.id, finalQuiz.id, contentIdx].join('|'))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1192,9 +1238,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
                             const data = e.dataTransfer.getData('text/plain')
                             if (data) {
-                              const [sourceSectionId, sourceContentId, sourceIndex] = data.split('-')
-                              if (sourceSectionId === section.id && parseInt(sourceIndex) !== contentIdx) {
-                                reorderContent(section.id, parseInt(sourceIndex), contentIdx)
+                              const parts = data.split('|')
+                              if (parts.length >= 3 && parts[0] === section.id) {
+                                const sourceIndex = parseInt(parts[2], 10)
+                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                  reorderContent(section.id, sourceIndex, contentIdx)
+                                }
                               }
                             }
                           }}
@@ -1761,7 +1810,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', `${section.id}-${article.id}-${contentIdx}`)
+                            e.dataTransfer.setData('text/plain', [section.id, article.id, contentIdx].join('|'))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1779,9 +1828,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
                             const data = e.dataTransfer.getData('text/plain')
                             if (data) {
-                              const [sourceSectionId, sourceContentId, sourceIndex] = data.split('-')
-                              if (sourceSectionId === section.id && parseInt(sourceIndex) !== contentIdx) {
-                                reorderContent(section.id, parseInt(sourceIndex), contentIdx)
+                              const parts = data.split('|')
+                              if (parts.length >= 3 && parts[0] === section.id) {
+                                const sourceIndex = parseInt(parts[2], 10)
+                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                  reorderContent(section.id, sourceIndex, contentIdx)
+                                }
                               }
                             }
                           }}
@@ -1815,13 +1867,75 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                 <Trash2 className="h-4 w-4 text-red-600" />
                               </Button>
                             </div>
-                            <textarea
-                              className="w-full px-3 py-2 border rounded-md"
-                              rows={4}
-                              value={article.content || ''}
-                              onChange={(e) => updateContent(section.id, article.id, 'article', { content: e.target.value })}
-                              placeholder={locale === 'ar' ? 'محتوى المقال...' : 'Article content...'}
-                            />
+                            <div className="space-y-2">
+                              <Label className="text-sm">{locale === 'ar' ? 'تنسيق النص' : 'Format'}</Label>
+                              <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-gray-50 border-b-0 rounded-b-none">
+                                <button
+                                  type="button"
+                                  title="Bold"
+                                  className="p-2 rounded hover:bg-gray-200"
+                                  onClick={() => { document.execCommand('bold'); document.getElementById(`article-editor-${article.id}`)?.focus() }}
+                                >
+                                  <Bold className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Italic"
+                                  className="p-2 rounded hover:bg-gray-200"
+                                  onClick={() => { document.execCommand('italic'); document.getElementById(`article-editor-${article.id}`)?.focus() }}
+                                >
+                                  <Italic className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Underline"
+                                  className="p-2 rounded hover:bg-gray-200"
+                                  onClick={() => { document.execCommand('underline'); document.getElementById(`article-editor-${article.id}`)?.focus() }}
+                                >
+                                  <Underline className="h-4 w-4" />
+                                </button>
+                                <select
+                                  className="text-sm border rounded px-2 py-1.5 bg-white"
+                                  title="Font size"
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    e.target.value = ''
+                                    if (val) document.execCommand(val === 'h2' ? 'formatBlock' : val === 'h3' ? 'formatBlock' : 'fontSize', false, val === 'h2' ? '<h2>' : val === 'h3' ? '<h3>' : val)
+                                    document.getElementById(`article-editor-${article.id}`)?.focus()
+                                  }}
+                                >
+                                  <option value="">{locale === 'ar' ? 'حجم الخط' : 'Size'}</option>
+                                  <option value="1">Small</option>
+                                  <option value="2">Normal</option>
+                                  <option value="3">Large</option>
+                                  <option value="h2">Heading 2</option>
+                                  <option value="h3">Heading 3</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  title="Bullet list"
+                                  className="p-2 rounded hover:bg-gray-200"
+                                  onClick={() => { document.execCommand('insertUnorderedList'); document.getElementById(`article-editor-${article.id}`)?.focus() }}
+                                >
+                                  <List className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Numbered list"
+                                  className="p-2 rounded hover:bg-gray-200"
+                                  onClick={() => { document.execCommand('insertOrderedList'); document.getElementById(`article-editor-${article.id}`)?.focus() }}
+                                >
+                                  <ListOrdered className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <ArticleRichEditor
+                                articleId={article.id}
+                                sectionId={section.id}
+                                content={article.content || ''}
+                                locale={locale}
+                                updateContent={updateContent}
+                              />
+                            </div>
                           </CardContent>
                         </Card>
                       )
@@ -1836,7 +1950,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', `${section.id}-${pdf.id}-${contentIdx}`)
+                            e.dataTransfer.setData('text/plain', [section.id, pdf.id, contentIdx].join('|'))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1854,9 +1968,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
                             const data = e.dataTransfer.getData('text/plain')
                             if (data) {
-                              const [sourceSectionId, sourceContentId, sourceIndex] = data.split('-')
-                              if (sourceSectionId === section.id && parseInt(sourceIndex) !== contentIdx) {
-                                reorderContent(section.id, parseInt(sourceIndex), contentIdx)
+                              const parts = data.split('|')
+                              if (parts.length >= 3 && parts[0] === section.id) {
+                                const sourceIndex = parseInt(parts[2], 10)
+                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                  reorderContent(section.id, sourceIndex, contentIdx)
+                                }
                               }
                             }
                           }}
@@ -1908,8 +2025,17 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault()
-                                  e.stopPropagation()
                                   e.currentTarget.classList.remove('border-primary', 'bg-primary/5')
+                                  const data = e.dataTransfer.getData('text/plain')
+                                  const parts = data ? data.split('|') : []
+                                  if (parts.length >= 3 && parts[0] === section.id) {
+                                    const sourceIndex = parseInt(parts[2], 10)
+                                    if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
+                                      reorderContent(section.id, sourceIndex, contentIdx)
+                                    }
+                                    return
+                                  }
+                                  e.stopPropagation()
                                   const file = e.dataTransfer.files[0]
                                   if (file) handleFileUpload(section.id, pdf.id, file)
                                 }}
@@ -2348,7 +2474,19 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
 
   const saveCourse = async () => {
     if (!courseId) return
-    
+
+    const totalDurationSeconds = (formData.sections || []).reduce((sum, section) => {
+      const sectionSeconds = (section.videos || []).reduce((s, v) => s + (Number(v.duration) || 0), 0)
+      return sum + sectionSeconds
+    }, 0)
+    const durationHours = Math.floor(totalDurationSeconds / 3600)
+    const durationMinutes = Math.floor((totalDurationSeconds % 3600) / 60)
+    const durationStr = durationHours === 0 && durationMinutes === 0
+      ? '0 hours'
+      : durationMinutes === 0
+        ? (durationHours === 1 ? '1 hour' : `${durationHours} hours`)
+        : `${durationHours}h ${durationMinutes}m`
+
     try {
       await fetch(`/api/instructor/courses/${courseId}`, {
         method: 'PUT',
@@ -2364,6 +2502,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
           price: formData.price,
           thumbnail: formData.thumbnail,
           sections: formData.sections,
+          duration: durationStr,
         }),
       })
     } catch (error) {
@@ -2440,9 +2579,9 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {currentStep === 1 && <Step1 />}
-              {currentStep === 2 && <Step3 />}
-              {currentStep === 3 && <Step4 />}
+              {currentStep === 1 && Step1()}
+              {currentStep === 2 && Step3()}
+              {currentStep === 3 && Step4()}
 
               {/* Navigation Buttons */}
               <div className="flex justify-between mt-8 pt-6 border-t">
