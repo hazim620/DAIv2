@@ -25,7 +25,6 @@ export async function GET(request, { params }) {
     }
 
     const duration = course.duration || formatCourseDuration(totalDurationSecondsFromSections(course.sections))
-    const { searchParams } = new URL(request.url)
     const videosOnly = searchParams.get('videosOnly') === 'true'
 
     const mapSection = (section) => ({
