@@ -24,7 +24,10 @@ export async function GET(request, { params }) {
       )
     }
 
-    const duration = course.duration || formatCourseDuration(totalDurationSecondsFromSections(course.sections))
+    const totalSeconds = totalDurationSecondsFromSections(course.sections)
+    const duration = totalSeconds > 0
+      ? formatCourseDuration(totalSeconds)
+      : (course.duration || '0 hours')
     const videosOnly = searchParams.get('videosOnly') === 'true'
 
     const mapSection = (section) => ({
@@ -35,6 +38,18 @@ export async function GET(request, { params }) {
         title: video.title[locale] || video.title.en,
         videoUrl: video.url ?? video.videoUrl,
         duration: video.duration ?? 0,
+      })),
+      quizzes: (section.quizzes || []).map(q => ({
+        ...q,
+        title: typeof q.title === 'object' ? (q.title[locale] || q.title.en) : q.title,
+      })),
+      articles: (section.articles || []).map(a => ({
+        ...a,
+        title: typeof a.title === 'object' ? (a.title[locale] || a.title.en) : a.title,
+      })),
+      pdfs: (section.pdfs || []).map(p => ({
+        ...p,
+        title: typeof p.title === 'object' ? (p.title[locale] || p.title.en) : p.title,
       })),
     })
 

@@ -302,6 +302,9 @@ export default function CourseDetailPage() {
                                 <div key={content.id} className="flex items-center gap-3 p-3 rounded border border-gray-200 bg-gray-50">
                                   <FileQuestion className="h-5 w-5 text-purple-600 flex-shrink-0" />
                                   <p className="font-medium">{getContentTitle(content)}</p>
+                                  {content.isFreePreview && (
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}</span>
+                                  )}
                                   <span className="text-xs text-gray-500 ml-auto">{locale === 'ar' ? 'اختبار' : 'Quiz'}</span>
                                 </div>
                               )
@@ -320,6 +323,9 @@ export default function CourseDetailPage() {
                                     )}
                                     <span className="text-xs text-gray-500">{locale === 'ar' ? 'مقال' : 'Article'}</span>
                                   </div>
+                                  {content.isFreePreview && (
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded flex-shrink-0">{locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}</span>
+                                  )}
                                 </div>
                               )
                             }
@@ -339,6 +345,9 @@ export default function CourseDetailPage() {
                                     </a>
                                   ) : (
                                     <p className="font-medium">{getContentTitle(content)}</p>
+                                  )}
+                                  {content.isFreePreview && (
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}</span>
                                   )}
                                   <span className="text-xs text-gray-500 ml-auto">{locale === 'ar' ? 'ملف' : 'File'}</span>
                                 </div>
@@ -427,7 +436,7 @@ export default function CourseDetailPage() {
                   <div className="pt-4 border-t">
                     {isInstructorOrAdmin ? (
                       <Link href={course.sections[0]?.videos[0]?.id ? `/courses/${courseId}/${course.sections[0].videos[0].id}` : '#'}>
-                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <Button className="w-full">
                           {locale === 'ar' ? 'عرض المحتوى' : 'View Content'}
                         </Button>
                       </Link>

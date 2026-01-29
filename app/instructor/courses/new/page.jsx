@@ -551,14 +551,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                         />
                       </div>
                     <div className="flex gap-2">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={section.isFreePreview || false}
-                          onChange={(e) => updateSection(section.id, { isFreePreview: e.target.checked })}
-                        />
-                        {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
-                      </label>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -693,16 +685,20 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
         newContent.duration = 0
         newContent.status = 'pending'
         newContent.file = null
+        newContent.isFree = false
       } else if (type === 'quiz') {
         newContent.questions = []
         newContent.passingScore = 70
         newContent.maxAttempts = 3
+        newContent.isFreePreview = false
       } else if (type === 'article') {
         newContent.content = ''
+        newContent.isFreePreview = false
       } else if (type === 'pdf') {
         newContent.url = ''
         newContent.fileName = ''
         newContent.file = null
+        newContent.isFreePreview = false
       }
 
       setFormData(prev => {
@@ -952,15 +948,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                       </div>
 
                       <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={section.isFreePreview || false}
-                            onChange={(e) => updateSectionMeta(section.id, { isFreePreview: e.target.checked })}
-                          />
-                          {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
-                        </label>
-
                         <Button variant="ghost" size="sm" onClick={() => deleteSection(section.id)}>
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
@@ -1037,7 +1024,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', [section.id, video.id, contentIdx].join('|'))
+                            e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1053,16 +1040,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           onDrop={(e) => {
                             e.preventDefault()
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            const data = e.dataTransfer.getData('text/plain')
-                            if (data) {
-                              const parts = data.split('|')
-                              if (parts.length >= 3 && parts[0] === section.id) {
-                                const sourceIndex = parseInt(parts[2], 10)
-                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                  reorderContent(section.id, sourceIndex, contentIdx)
-                                }
+                            try {
+                              const data = e.dataTransfer.getData('text/plain')
+                              const payload = data ? JSON.parse(data) : null
+                              if (payload && payload.s === section.id && Number.isInteger(payload.i)) {
+                                const sourceIndex = payload.i
+                                if (sourceIndex !== contentIdx) reorderContent(section.id, sourceIndex, contentIdx)
                               }
-                            }
+                            } catch (_) {}
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1086,13 +1071,23 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   />
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteContent(section.id, video.id, 'video')}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={video.isFree || false}
+                                    onChange={(e) => updateContent(section.id, video.id, 'video', { isFree: e.target.checked })}
+                                  />
+                                  {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
+                                </label>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteContent(section.id, video.id, 'video')}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <div>
@@ -1114,15 +1109,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   onDrop={(e) => {
                                     e.preventDefault()
                                     e.currentTarget.classList.remove('border-primary', 'bg-primary/5')
-                                    const data = e.dataTransfer.getData('text/plain')
-                                    const parts = data ? data.split('|') : []
-                                    if (parts.length >= 3 && parts[0] === section.id) {
-                                      const sourceIndex = parseInt(parts[2], 10)
-                                      if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                        reorderContent(section.id, sourceIndex, contentIdx)
+                                    try {
+                                      const data = e.dataTransfer.getData('text/plain')
+                                      const payload = data ? JSON.parse(data) : null
+                                      if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
+                                        reorderContent(section.id, payload.i, contentIdx)
+                                        return
                                       }
-                                      return
-                                    }
+                                    } catch (_) {}
                                     e.stopPropagation()
                                     const file = e.dataTransfer.files[0]
                                     if (file && file.type.startsWith('video/')) {
@@ -1220,7 +1214,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', [section.id, finalQuiz.id, contentIdx].join('|'))
+                            e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1236,16 +1230,13 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           onDrop={(e) => {
                             e.preventDefault()
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            const data = e.dataTransfer.getData('text/plain')
-                            if (data) {
-                              const parts = data.split('|')
-                              if (parts.length >= 3 && parts[0] === section.id) {
-                                const sourceIndex = parseInt(parts[2], 10)
-                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                  reorderContent(section.id, sourceIndex, contentIdx)
-                                }
+                            try {
+                              const data = e.dataTransfer.getData('text/plain')
+                              const payload = data ? JSON.parse(data) : null
+                              if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
+                                reorderContent(section.id, payload.i, contentIdx)
                               }
-                            }
+                            } catch (_) {}
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1281,6 +1272,25 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                     className="font-semibold"
                                   />
                                 </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={finalQuiz.isFreePreview || false}
+                                    onChange={(e) => updateContent(section.id, finalQuiz.id, 'quiz', { isFreePreview: e.target.checked })}
+                                  />
+                                  {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
+                                </label>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteContent(section.id, finalQuiz.id, 'quiz')}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                   <div>
                                     <Label htmlFor={`quiz-passing-score-${finalQuiz.id}`} className="text-sm">
@@ -1810,7 +1820,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           className="bg-gray-50"
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', [section.id, article.id, contentIdx].join('|'))
+                            e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
@@ -1826,16 +1836,13 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           onDrop={(e) => {
                             e.preventDefault()
                             e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            const data = e.dataTransfer.getData('text/plain')
-                            if (data) {
-                              const parts = data.split('|')
-                              if (parts.length >= 3 && parts[0] === section.id) {
-                                const sourceIndex = parseInt(parts[2], 10)
-                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                  reorderContent(section.id, sourceIndex, contentIdx)
-                                }
+                            try {
+                              const data = e.dataTransfer.getData('text/plain')
+                              const payload = data ? JSON.parse(data) : null
+                              if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
+                                reorderContent(section.id, payload.i, contentIdx)
                               }
-                            }
+                            } catch (_) {}
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1859,13 +1866,23 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   />
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteContent(section.id, article.id, 'article')}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={article.isFreePreview || false}
+                                    onChange={(e) => updateContent(section.id, article.id, 'article', { isFreePreview: e.target.checked })}
+                                  />
+                                  {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
+                                </label>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteContent(section.id, article.id, 'article')}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <Label className="text-sm">{locale === 'ar' ? 'تنسيق النص' : 'Format'}</Label>
@@ -1999,13 +2016,23 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   />
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteContent(section.id, pdf.id, 'pdf')}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={pdf.isFreePreview || false}
+                                    onChange={(e) => updateContent(section.id, pdf.id, 'pdf', { isFreePreview: e.target.checked })}
+                                  />
+                                  {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
+                                </label>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteContent(section.id, pdf.id, 'pdf')}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
                             </div>
                             <div>
                               <Label htmlFor={`pdf-upload-${pdf.id}`} className="text-sm">
@@ -2026,15 +2053,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                 onDrop={(e) => {
                                   e.preventDefault()
                                   e.currentTarget.classList.remove('border-primary', 'bg-primary/5')
-                                  const data = e.dataTransfer.getData('text/plain')
-                                  const parts = data ? data.split('|') : []
-                                  if (parts.length >= 3 && parts[0] === section.id) {
-                                    const sourceIndex = parseInt(parts[2], 10)
-                                    if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                      reorderContent(section.id, sourceIndex, contentIdx)
+                                  try {
+                                    const data = e.dataTransfer.getData('text/plain')
+                                    const payload = data ? JSON.parse(data) : null
+                                    if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
+                                      reorderContent(section.id, payload.i, contentIdx)
+                                      return
                                     }
-                                    return
-                                  }
+                                  } catch (_) {}
                                   e.stopPropagation()
                                   const file = e.dataTransfer.files[0]
                                   if (file) handleFileUpload(section.id, pdf.id, file)
@@ -2200,7 +2226,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
     const sections = formData.sections || []
     const totalVideos = sections.reduce((sum, section) => sum + ((section.videos || []).length), 0)
     const freeVideos = sections.reduce(
-      (sum, section) => sum + (section.isFreePreview ? ((section.videos || []).length) : 0),
+      (sum, section) => sum + (section.videos || []).filter(v => v.isFree).length,
       0
     )
     const totalDurationSeconds = sections.reduce((sum, section) => {
@@ -2283,23 +2309,18 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                 <div className="space-y-4">
                   {sections.map((section, sIdx) => {
                     const sectionTitle = getLocalized(section.title) || (locale === 'ar' ? 'قسم بدون عنوان' : 'Untitled section')
-                    const isFreeSection = !!section.isFreePreview
 
                     return (
                       <div key={section.id || sIdx} className="border rounded-lg p-4">
                         <h3 className="font-semibold text-lg mb-3">
                           {sIdx + 1}. {sectionTitle}
-                          {isFreeSection && (
-                            <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                              {locale === 'ar' ? 'معاينة مجانية' : 'Free Preview'}
-                            </span>
-                          )}
                         </h3>
 
                         <div className="space-y-2">
                           {getAllContents(section).map((content, contentIdx) => {
                             const contentNumber = `${sIdx + 1}.${contentIdx + 1}`
                             const contentTitle = getLocalized(content.title) || (locale === 'ar' ? 'بدون عنوان' : 'Untitled')
+                            const isFreeContent = content.type === 'video' ? !!content.isFree : !!content.isFreePreview
 
                             let typeIcon = null
                             let typeLabel = ''
@@ -2317,7 +2338,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                               typeLabel = locale === 'ar' ? 'ملف' : 'File'
                             }
 
-                            const accessIcon = isFreeSection ? (
+                            const accessIcon = isFreeContent ? (
                               <Play className="h-5 w-5 text-primary" />
                             ) : (
                               <Lock className="h-5 w-5 text-gray-400" />
@@ -2327,14 +2348,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                               <div
                                 key={content.id || `${content.type}-${contentIdx}`}
                                 className={`flex items-center justify-between p-3 rounded border transition-colors ${
-                                  isFreeSection ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'
+                                  isFreeContent ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'
                                 }`}
                               >
                                 <div className="flex items-center gap-3 flex-1">
-                                  {content.type === 'video' ? accessIcon : (isFreeSection ? typeIcon : <Lock className="h-5 w-5 text-gray-400" />)}
+                                  {content.type === 'video' ? accessIcon : (isFreeContent ? typeIcon : <Lock className="h-5 w-5 text-gray-400" />)}
                                   <div className="flex items-center gap-3">
                                     <span className="text-sm font-semibold text-gray-600">{contentNumber}</span>
-                                    {content.type !== 'video' && isFreeSection && typeIcon}
+                                    {content.type !== 'video' && isFreeContent && typeIcon}
                                     <div>
                                       <p className="font-medium">{contentTitle}</p>
                                       <p className="text-sm text-gray-500">
@@ -2343,7 +2364,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                       </p>
                                     </div>
                                   </div>
-                                  {isFreeSection && (
+                                  {isFreeContent && (
                                     <span className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                                       {locale === 'ar' ? 'مجاني' : 'Free'}
                                     </span>
