@@ -12,29 +12,41 @@ export async function POST(request) {
     }
 
     const distributionId = process.env.CLOUDFRONT_DISTRIBUTION_ID || 'EGYXGZXQ4IAXY'
-    const region = process.env.APP_AWS_REGION || 'me-south-1'
+    const region = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'me-south-1'
 
-    // Check if credentials are available
-    const hasExplicitCredentials = !!(process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY)
+    // Try to use explicit credentials if available, otherwise use default credential chain (IAM role)
+    const hasAccessKey = !!process.env.APP_AWS_ACCESS_KEY_ID
+    const hasSecretKey = !!process.env.APP_AWS_SECRET_ACCESS_KEY
+    const hasExplicitCredentials = hasAccessKey && hasSecretKey
     
-    if (!hasExplicitCredentials) {
-      // No credentials available - skip invalidation gracefully
-      console.warn('CloudFront invalidation skipped: AWS credentials not configured. Add APP_AWS_ACCESS_KEY_ID and APP_AWS_SECRET_ACCESS_KEY to enable invalidation.')
-      return Response.json({ 
-        success: true, 
-        skipped: true,
-        message: 'CloudFront invalidation skipped - credentials not configured'
-      })
-    }
-
-    // Use explicit credentials
-    const client = new CloudFrontClient({ 
+    // Debug logging
+    console.log('CloudFront invalidation check:', {
+      hasAccessKey,
+      hasSecretKey,
+      hasExplicitCredentials,
+      usingIAMRole: !hasExplicitCredentials,
+      distributionId,
       region,
-      credentials: {
+      awsRegion: process.env.AWS_REGION,
+    })
+
+    // Configure CloudFront client
+    const clientConfig = { region }
+    
+    if (hasExplicitCredentials) {
+      // Use explicit credentials if available
+      clientConfig.credentials = {
         accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY,
       }
-    })
+      console.log('Using explicit AWS credentials')
+    } else {
+      // Use default credential chain (IAM role in Lambda/Amplify)
+      // AWS SDK will automatically use the Lambda execution role
+      console.log('Using IAM role credentials (default credential chain)')
+    }
+
+    const client = new CloudFrontClient(clientConfig)
 
     const command = new CreateInvalidationCommand({
       DistributionId: distributionId,
