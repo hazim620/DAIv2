@@ -221,7 +221,7 @@ export default function VideoPlayerPage() {
                           handleTimeUpdate(video.currentTime, video.duration)
                         }}
                       >
-                        <source src={currentVideo.videoUrl} type="video/mp4" />
+                        <source src={currentVideo.url ?? currentVideo.videoUrl} type="video/mp4" />
                         {locale === 'ar' ? 'المتصفح لا يدعم تشغيل الفيديو' : 'Your browser does not support video playback'}
                       </video>
                     </div>

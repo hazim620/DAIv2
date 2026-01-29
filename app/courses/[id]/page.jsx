@@ -151,8 +151,12 @@ export default function CourseDetailPage() {
             <div className="lg:col-span-2 space-y-6">
               {/* Course Header - Always Visible */}
               <Card>
-                <div className="relative h-64 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                  <PlayCircle className="h-24 w-24 text-primary/50" />
+                <div className="relative h-64 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center overflow-hidden">
+                  {course.thumbnail ? (
+                    <img src={course.thumbnail} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <PlayCircle className="h-24 w-24 text-primary/50" />
+                  )}
                 </div>
                 <CardHeader>
                   <CardTitle className="text-3xl">{course.title}</CardTitle>

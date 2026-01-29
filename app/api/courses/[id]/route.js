@@ -26,6 +26,7 @@ export async function GET(request, { params }) {
         videos: section.videos.map(video => ({
           ...video,
           title: video.title[locale] || video.title.en,
+          videoUrl: video.url ?? video.videoUrl,
         })),
       })),
     }

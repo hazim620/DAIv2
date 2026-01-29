@@ -171,10 +171,17 @@ export default function CoursePreviewPage() {
                           const pdfTitle = typeof pdf.title === 'object'
                             ? pdf.title[locale] || pdf.title.en
                             : pdf.title
+                          const pdfUrl = pdf.url ?? pdf.file
                           return (
                             <div key={pdf.id || pIdx} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
-                              <File className="h-5 w-5 text-red-600" />
-                              <span>{pdfTitle}</span>
+                              <File className="h-5 w-5 text-red-600 flex-shrink-0" />
+                              {pdfUrl ? (
+                                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                  {pdfTitle}
+                                </a>
+                              ) : (
+                                <span>{pdfTitle}</span>
+                              )}
                             </div>
                           )
                         })}
