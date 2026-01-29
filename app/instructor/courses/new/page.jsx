@@ -1797,15 +1797,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                     )}
                                   </div>
                                 </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteContent(section.id, finalQuiz.id, 'quiz')}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
                           </CardContent>
                         </Card>
                       )
