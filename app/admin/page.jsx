@@ -6,10 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
-import { BookOpen, Plus, Trash2, Edit, Users, Award, TrendingUp, MessageSquare, Star } from 'lucide-react'
+import { BookOpen, Plus, Trash2, Edit, Users, TrendingUp, MessageSquare, Star, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AdminPage() {
@@ -19,9 +18,12 @@ export default function AdminPage() {
   const [courses, setCourses] = useState([])
   const [enrollments, setEnrollments] = useState([])
   const [reviews, setReviews] = useState([])
+  const [dashboard, setDashboard] = useState(null)
+  const [performanceCourses, setPerformanceCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [activeTab, setActiveTab] = useState('courses')
+  const [activeTab, setActiveTab] = useState('overview')
+  const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', category: '' })
   const [formData, setFormData] = useState({
     title: { en: '', ar: '' },
     description: { en: '', ar: '' },
@@ -31,16 +33,47 @@ export default function AdminPage() {
   })
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login')
-      return
-    }
-    if (user.role !== 'admin') {
-      router.push('/dashboard')
-      return
-    }
+    if (!user || user.role !== 'admin') return
     fetchData()
-  }, [user, router, locale])
+  }, [user, locale])
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return
+    fetchDashboard()
+  }, [user, filters.dateFrom, filters.dateTo, filters.category])
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return
+    if (activeTab === 'performance') fetchPerformance()
+  }, [user, activeTab])
+
+  const fetchDashboard = async () => {
+    try {
+      const q = new URLSearchParams()
+      if (filters.dateFrom) q.set('dateFrom', filters.dateFrom)
+      if (filters.dateTo) q.set('dateTo', filters.dateTo)
+      if (filters.category) q.set('category', filters.category)
+      const res = await fetch(`/api/admin/dashboard?${q}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setDashboard(data)
+      }
+    } catch (e) {
+      console.error('Dashboard fetch error:', e)
+    }
+  }
+
+  const fetchPerformance = async () => {
+    try {
+      const res = await fetch('/api/admin/courses/performance', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setPerformanceCourses(data.courses || [])
+      }
+    } catch (e) {
+      console.error('Performance fetch error:', e)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -64,6 +97,8 @@ export default function AdminPage() {
         const data = await reviewsRes.json()
         setReviews(data.reviews || [])
       }
+
+      await fetchDashboard()
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -140,119 +175,236 @@ export default function AdminPage() {
     )
   }
 
-  const totalCourses = courses.length
-  const totalEnrollments = enrollments.length
-  const totalRevenue = courses.reduce((sum, course) => {
-    const enrollmentsForCourse = enrollments.filter(e => e.courseId === course.id.toString())
-    return sum + (course.price * enrollmentsForCourse.length)
-  }, 0)
+  const totalCourses = dashboard?.totalCourses ?? courses.length
+  const totalEnrollments = dashboard?.totalStudents ?? enrollments.length
+  const totalGrossRevenue = dashboard?.totalGrossRevenue ?? 0
+  const totalNetRevenue = dashboard?.totalNetRevenue ?? 0
+  const totalInstructors = dashboard?.totalInstructors ?? 0
   const averageRating = reviews.length > 0
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : 0
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar />
-      <div className="flex-1 py-12">
-        <div className="container mx-auto px-4">
-          <div className="mb-8 flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                {locale === 'ar' ? 'لوحة التحكم - المدير' : 'Admin Panel'}
-              </h1>
-              <p className="text-gray-600">
-                {locale === 'ar'
-                  ? 'إدارة الدورات والمستخدمين والمحتوى'
-                  : 'Manage courses, users, and content'}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Link href="/admin/instructors">
-                <Button variant="outline">
-                  <Users className="h-4 w-4 mr-2" />
-                  {locale === 'ar' ? 'إدارة المعلمين' : 'Manage Instructors'}
-                </Button>
-              </Link>
-              <Button onClick={() => setShowForm(!showForm)}>
-                <Plus className="h-4 w-4 mr-2" />
-                {locale === 'ar' ? 'إضافة دورة' : 'Add Course'}
-              </Button>
-            </div>
-          </div>
+    <div className="flex-1 py-8">
+      <div className="container mx-auto px-4">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">
+            {locale === 'ar' ? 'لوحة التحكم' : 'Admin Dashboard'}
+          </h1>
+          <p className="text-gray-600">
+            {locale === 'ar' ? 'نظرة عامة على المنصة' : 'Platform overview'}
+          </p>
+        </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'إجمالي الدورات' : 'Total Courses'}
-                </CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalCourses}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'إجمالي التسجيلات' : 'Total Enrollments'}
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalEnrollments}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'}
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {locale === 'ar' ? 'متوسط التقييم' : 'Avg Rating'}
-                </CardTitle>
-                <Star className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{averageRating} ⭐</div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <Input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+            className="w-40"
+          />
+          <Input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+            className="w-40"
+          />
+          <select
+            value={filters.category}
+            onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
+            className="border rounded px-3 py-2 w-44 text-sm"
+          >
+            <option value="">{locale === 'ar' ? 'كل التصنيفات' : 'All categories'}</option>
+            <option value="general">{locale === 'ar' ? 'عام' : 'General'}</option>
+            <option value="programming">{locale === 'ar' ? 'برمجة' : 'Programming'}</option>
+            <option value="business">{locale === 'ar' ? 'أعمال' : 'Business'}</option>
+            <option value="marketing">{locale === 'ar' ? 'تسويق' : 'Marketing'}</option>
+          </select>
+        </div>
 
-          {/* Tabs */}
-          <div className="mb-6 border-b">
-            <div className="flex gap-4">
-              <button
-                onClick={() => setActiveTab('courses')}
-                className={`pb-4 px-4 font-medium transition-colors ${
-                  activeTab === 'courses'
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {locale === 'ar' ? 'إجمالي الإيرادات' : 'Gross Revenue'}
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{totalGrossRevenue.toLocaleString()} ر.س</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {locale === 'ar' ? 'صافي الإيرادات' : 'Net Revenue'}
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{totalNetRevenue.toLocaleString()} ر.س</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 {locale === 'ar' ? 'الدورات' : 'Courses'}
-              </button>
-              <button
-                onClick={() => setActiveTab('reviews')}
-                className={`pb-4 px-4 font-medium transition-colors ${
-                  activeTab === 'reviews'
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {locale === 'ar' ? 'التقييمات' : 'Reviews'}
-              </button>
-            </div>
+              </CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{totalCourses}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {locale === 'ar' ? 'المعلمون' : 'Instructors'}
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{totalInstructors}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {locale === 'ar' ? 'الطلاب' : 'Students'}
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{totalEnrollments}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 border-b">
+          <div className="flex gap-4 flex-wrap">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`pb-4 px-4 font-medium transition-colors ${
+                activeTab === 'overview'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'نظرة عامة' : 'Overview'}
+            </button>
+            <button
+              onClick={() => setActiveTab('performance')}
+              className={`pb-4 px-4 font-medium transition-colors ${
+                activeTab === 'performance'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'أداء الدورات' : 'Course Performance'}
+            </button>
+            <button
+              onClick={() => setActiveTab('courses')}
+              className={`pb-4 px-4 font-medium transition-colors ${
+                activeTab === 'courses'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'الدورات' : 'Courses'}
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`pb-4 px-4 font-medium transition-colors ${
+                activeTab === 'reviews'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {locale === 'ar' ? 'التقييمات' : 'Reviews'}
+            </button>
           </div>
+        </div>
+
+          {/* Overview Tab: quick links + courses */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="flex gap-3 flex-wrap">
+                <Link href="/admin/courses/review">
+                  <Button variant="outline">
+                    {locale === 'ar' ? 'مراجعة الدورات المقدمة' : 'Course Review Queue'}
+                  </Button>
+                </Link>
+                <Link href="/admin/instructors">
+                  <Button variant="outline">
+                    <Users className="h-4 w-4 mr-2" />
+                    {locale === 'ar' ? 'إدارة المعلمين' : 'Manage Instructors'}
+                  </Button>
+                </Link>
+                <Button onClick={() => setShowForm(!showForm)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {locale === 'ar' ? 'إضافة دورة' : 'Add Course'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Course Performance Tab */}
+          {activeTab === 'performance' && (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-200 text-sm">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-200 px-3 py-2 text-left font-medium">
+                      {locale === 'ar' ? 'الدورة' : 'Course'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-left font-medium">
+                      {locale === 'ar' ? 'المدرب' : 'Instructor'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-right font-medium">
+                      {locale === 'ar' ? 'الطلاب' : 'Enrolled'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-right font-medium">
+                      {locale === 'ar' ? 'إجمالي الإيرادات' : 'Gross Revenue'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-right font-medium">
+                      {locale === 'ar' ? 'صافي المنصة' : 'Net Platform'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-left font-medium">
+                      {locale === 'ar' ? 'الحالة' : 'Status'}
+                    </th>
+                    <th className="border border-gray-200 px-3 py-2 text-left font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {performanceCourses.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-200 px-3 py-2 font-medium">{c.title || c.id}</td>
+                      <td className="border border-gray-200 px-3 py-2">{c.instructorName || '-'}</td>
+                      <td className="border border-gray-200 px-3 py-2 text-right">{c.enrolledCount}</td>
+                      <td className="border border-gray-200 px-3 py-2 text-right">{c.grossRevenue?.toLocaleString()} ر.س</td>
+                      <td className="border border-gray-200 px-3 py-2 text-right">{c.netPlatformRevenue?.toLocaleString()} ر.س</td>
+                      <td className="border border-gray-200 px-3 py-2">{c.status || '-'}</td>
+                      <td className="border border-gray-200 px-3 py-2">
+                        <Link href={`/admin/courses/${c.id}/review`}>
+                          <Button variant="outline" size="sm">
+                            {locale === 'ar' ? 'عرض' : 'View'}
+                          </Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {performanceCourses.length === 0 && (
+                <p className="text-gray-500 py-6 text-center">
+                  {locale === 'ar' ? 'لا توجد دورات' : 'No courses'}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Course Form */}
           {showForm && (
@@ -359,7 +511,7 @@ export default function AdminPage() {
                     <CardContent>
                       <div className="space-y-2">
                         <p className="text-sm text-gray-600">
-                          {locale === 'ar' ? 'السعر:' : 'Price:'} ${course.price}
+                          {locale === 'ar' ? 'السعر:' : 'Price:'} {course.price != null ? `${course.price} ر.س` : '0 ر.س'}
                         </p>
                         <p className="text-sm text-gray-600">
                           {locale === 'ar' ? 'الطلاب:' : 'Students:'} {enrollmentsForCourse.length}
@@ -444,7 +596,6 @@ export default function AdminPage() {
               )}
             </div>
           )}
-        </div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import { coursesDB, courseSubmissionsDB, courseStatusHistoryDB } from '@/lib/db'
-import { validateCourseContent } from '@/lib/content-policies'
+import { createNotification } from '@/lib/notifications'
 
 // Get all submissions for instructor
 export async function GET(request) {
@@ -97,24 +97,10 @@ export async function POST(request) {
       )
     }
 
-    // Check if course can be submitted
-    if (course.status !== 'draft' && course.status !== 'changes_requested') {
+    // Check if course can be submitted (draft, rejected, need_modification, or published for re-review)
+    if (course.status !== 'draft' && course.status !== 'changes_requested' && course.status !== 'need_modification' && course.status !== 'published' && course.status !== 'rejected') {
       return Response.json(
         { error: `Course cannot be submitted. Current status: ${course.status}` },
-        { status: 400 }
-      )
-    }
-
-    // Validate course content using content policies
-    const validation = validateCourseContent(course)
-    
-    if (!validation.valid) {
-      return Response.json(
-        { 
-          error: 'Course validation failed',
-          validationErrors: validation.errors,
-          warnings: validation.warnings,
-        },
         { status: 400 }
       )
     }
@@ -131,14 +117,23 @@ export async function POST(request) {
       status: 'submitted_for_review',
     })
 
-    // Create status history entry
+    const reason = 'Submitted for admin review'
     await courseStatusHistoryDB.create({
       courseId,
       status: 'submitted_for_review',
       changedBy: user.id,
       changedByRole: user.role,
-      reason: 'Submitted for admin review',
+      reason,
     })
+
+    const titleStr = typeof course.title === 'object' ? course.title?.en || course.title?.ar : course.title
+    await createNotification(
+      user.id,
+      'course',
+      'Submitted for Review',
+      `Your course "${titleStr}" has been submitted for admin review.\n\nReason: ${reason}`,
+      `/instructor/courses/${courseId}`
+    )
 
     return Response.json({ submission }, { status: 201 })
   } catch (error) {

@@ -32,13 +32,21 @@ export default function LoginPage() {
     
     if (result.success) {
       const role = result.user?.role
-      if (role === 'instructor' || role === 'admin') {
+      if (role === 'admin') {
+        router.push('/admin')
+      } else if (role === 'instructor') {
         router.push('/instructor')
       } else {
         router.push('/dashboard')
       }
     } else {
-      setError(result.error || 'Login failed')
+      if (result.errorCode === 'account_not_approved') {
+        setError(locale === 'ar'
+          ? 'تسجيلك قيد المراجعة. سنقوم بتحديثك بمجرد الموافقة عليه.'
+          : 'Your registration is under review. We will update you once it is approved.')
+      } else {
+        setError(result.error || 'Login failed')
+      }
     }
     
     setLoading(false)
@@ -129,9 +137,6 @@ export default function LoginPage() {
                   </Link>
                 </div>
                 <div className="pt-2 border-t border-gray-100">
-                  <span className="text-gray-600">
-                    {locale === 'ar' ? 'تريد التدريس؟ ' : 'Want to teach? '}
-                  </span>
                   <Link href="/instructor/signup" className="text-primary hover:underline font-medium">
                     {locale === 'ar' ? 'انضم كمدرب' : 'Join as instructor'}
                   </Link>

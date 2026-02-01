@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import { coursesDB, courseStatusHistoryDB } from '@/lib/db'
+import { createNotification } from '@/lib/notifications'
 
 // Get all instructor courses
 export async function GET(request) {
@@ -109,14 +110,23 @@ export async function POST(request) {
       duration: '0 hours',
     })
 
-    // Create status history entry
+    const reason = 'Course created'
     await courseStatusHistoryDB.create({
       courseId: newCourse.id,
       status: 'draft',
       changedBy: user.id,
       changedByRole: user.role,
-      reason: 'Course created',
+      reason,
     })
+
+    const titleStr = typeof newCourse.title === 'object' ? newCourse.title?.en || newCourse.title?.ar : newCourse.title
+    await createNotification(
+      user.id,
+      'course',
+      'Course Created',
+      `Your course "${titleStr}" has been created as draft.\n\nReason: ${reason}`,
+      `/instructor/courses/${newCourse.id}`
+    )
 
     return Response.json({ course: newCourse }, { status: 201 })
   } catch (error) {

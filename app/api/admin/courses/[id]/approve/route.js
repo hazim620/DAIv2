@@ -1,26 +1,17 @@
-import { requireAuth } from '@/lib/auth'
-import { coursesDB, courseStatusHistoryDB } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
+import { coursesDB, courseStatusHistoryDB, courseSubmissionsDB } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 
 export async function POST(request, { params }) {
   try {
-    const authResult = await requireAuth(request)
-    
+    const authResult = await requireAdmin(request)
     if (authResult.error) {
       return Response.json(
         { error: authResult.error },
         { status: authResult.status }
       )
     }
-
     const user = authResult.user
-    
-    if (user.role !== 'admin') {
-      return Response.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 403 }
-      )
-    }
 
     const { id } = params
     const course = await coursesDB.getById(id)
@@ -65,12 +56,18 @@ export async function POST(request, { params }) {
           reason: `Version ${course.version} approved and replaced version ${course.version - 1}`,
         })
 
-        // Notify instructor
+        const submissions = await courseSubmissionsDB.getByCourseId(id)
+        const pending = submissions.find((s) => s.status === 'submitted_for_review')
+        if (pending) {
+          await courseSubmissionsDB.update(pending.id, { status: 'approved' })
+        }
+
+        const reason = `Version ${course.version} approved and replaced version ${course.version - 1}`
         await createNotification(
           course.instructorId,
           'course',
           'Course Published',
-          `Your course "${typeof course.title === 'object' ? course.title.en : course.title}" version ${course.version} has been approved and published.`,
+          `Your course "${typeof course.title === 'object' ? course.title.en : course.title}" version ${course.version} has been approved and published.\n\nReason: ${reason}`,
           `/instructor/courses/${id}`
         )
 
@@ -86,6 +83,12 @@ export async function POST(request, { params }) {
       status: 'published',
     })
 
+    const submissions = await courseSubmissionsDB.getByCourseId(id)
+    const pending = submissions.find((s) => s.status === 'submitted_for_review')
+    if (pending) {
+      await courseSubmissionsDB.update(pending.id, { status: 'approved' })
+    }
+
     // Create status history
     await courseStatusHistoryDB.create({
       courseId: id,
@@ -95,12 +98,12 @@ export async function POST(request, { params }) {
       reason: 'Course approved and published by admin',
     })
 
-    // Notify instructor
+    const reason = 'Course approved and published by admin'
     await createNotification(
       course.instructorId,
       'course',
       'Course Published',
-      `Your course "${typeof course.title === 'object' ? course.title.en : course.title}" has been approved and published.`,
+      `Your course "${typeof course.title === 'object' ? course.title.en : course.title}" has been approved and published.\n\nReason: ${reason}`,
       `/instructor/courses/${id}`
     )
 

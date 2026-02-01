@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
+import Link from 'next/link'
 import { CheckCircle, XCircle, Eye, Mail, User, Calendar, GraduationCap } from 'lucide-react'
 
 export default function AdminInstructorsPage() {
@@ -124,10 +124,8 @@ export default function AdminInstructorsPage() {
   const allInstructors = instructors
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar />
-      <div className="flex-1">
-        <div className="container mx-auto px-4 py-8">
+    <div className="flex-1">
+      <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               {locale === 'ar' ? 'إدارة المعلمين' : 'Instructor Management'}
@@ -178,14 +176,12 @@ export default function AdminInstructorsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedInstructor(instructor)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {locale === 'ar' ? 'عرض التفاصيل' : 'View Details'}
-                          </Button>
+                          <Link href={`/admin/instructors/${instructor.id}`}>
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 mr-2" />
+                              {locale === 'ar' ? 'عرض التفاصيل' : 'View Details'}
+                            </Button>
+                          </Link>
                           <Button
                             size="sm"
                             onClick={() => handleApprove(instructor.id)}
@@ -288,6 +284,5 @@ export default function AdminInstructorsPage() {
           )}
         </div>
       </div>
-    </div>
   )
 }

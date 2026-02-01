@@ -82,7 +82,7 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <Navbar />
       <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-primary/5 via-white to-primary/5 py-12 px-4">
         <Card className="w-full max-w-md">
@@ -92,8 +92,8 @@ export default function VerifyEmailPage() {
             </CardTitle>
             <CardDescription>
               {locale === 'ar'
-                ? 'يرجى التحقق من بريدك الإلكتروني'
-                : 'Please verify your email address'}
+                ? 'يرجى التحقق من بريدك الإلكتروني قبل تسجيل الدخول'
+                : 'Please verify your email address before logging in'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

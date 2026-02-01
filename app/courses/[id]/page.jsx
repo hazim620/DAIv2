@@ -391,7 +391,7 @@ export default function CourseDetailPage() {
                     </>
                   ) : (
                     <>
-                      <CardTitle className="text-2xl">${course.price}</CardTitle>
+                      <CardTitle className="text-2xl">{course.price != null ? `${course.price} ر.س` : '0 ر.س'}</CardTitle>
                       <CardDescription>
                         {locale === 'ar' ? 'سعر الدورة' : 'Course Price'}
                       </CardDescription>

@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/language-switcher'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import {
@@ -34,8 +33,11 @@ export function Navbar() {
               DAI
             </Link>
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/" className="text-sm font-medium text-gray-700 hover:text-primary transition-colors">
-                {t('home')}
+              <Link
+                href={user?.role === 'admin' ? '/admin' : user && user.role === 'instructor' ? '/instructor' : (user ? '/dashboard' : '/')}
+                className="text-sm font-medium text-gray-700 hover:text-primary transition-colors"
+              >
+                {user?.role === 'admin' ? (locale === 'ar' ? 'لوحة المدير' : 'Admin') : user && user.role === 'instructor' ? (locale === 'ar' ? 'لوحة التحكم' : 'Dashboard') : t('home')}
               </Link>
               <Link href="/courses" className="text-sm font-medium text-gray-700 hover:text-primary transition-colors">
                 {t('courses')}
@@ -49,7 +51,6 @@ export function Navbar() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <LanguageSwitcher />
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -65,7 +66,7 @@ export function Navbar() {
                     <User className="mr-2 h-4 w-4" />
                     {t('myCourses')}
                   </DropdownMenuItem>
-                  {(user.role === 'instructor' || user.role === 'admin') && (
+                  {user.role === 'instructor' && (
                     <DropdownMenuItem onClick={() => router.push('/instructor')}>
                       <BookOpen className="mr-2 h-4 w-4" />
                       {locale === 'ar' ? 'لوحة المدرب' : 'Instructor Dashboard'}

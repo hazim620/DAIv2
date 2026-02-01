@@ -203,7 +203,7 @@ export default function NotificationsPage() {
                             <h3 className={`font-semibold ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
                               {notification.title}
                             </h3>
-                            <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                            <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{notification.message}</p>
                             <p className="text-xs text-gray-500 mt-2">
                               {new Date(notification.createdAt).toLocaleString()}
                             </p>

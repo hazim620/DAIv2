@@ -36,7 +36,7 @@ export async function POST(request) {
     // Verify current password
     if (!comparePassword(currentPassword, fullUser.password)) {
       return Response.json(
-        { error: 'Current password is incorrect' },
+        { error: 'كلمة المرور الحالية غير صحيحة', errorCode: 'invalid_current_password' },
         { status: 401 }
       )
     }

@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
-        return { success: false, error: data.error || `HTTP ${response.status}` }
+        return { success: false, error: data.error || `HTTP ${response.status}`, errorCode: data.errorCode }
       }
 
       const data = await response.json()

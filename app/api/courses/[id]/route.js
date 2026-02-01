@@ -30,43 +30,85 @@ export async function GET(request, { params }) {
       : (course.duration || '0 hours')
     const videosOnly = searchParams.get('videosOnly') === 'true'
 
-    const mapSection = (section) => ({
-      ...section,
-      title: section.title[locale] || section.title.en,
-      videos: (section.videos || []).map(video => ({
-        ...video,
-        title: video.title[locale] || video.title.en,
-        videoUrl: video.url ?? video.videoUrl,
-        duration: video.duration ?? 0,
-      })),
-      quizzes: (section.quizzes || []).map(q => ({
-        ...q,
-        title: typeof q.title === 'object' ? (q.title[locale] || q.title.en) : q.title,
-      })),
-      articles: (section.articles || []).map(a => ({
-        ...a,
-        title: typeof a.title === 'object' ? (a.title[locale] || a.title.en) : a.title,
-      })),
-      pdfs: (section.pdfs || []).map(p => ({
-        ...p,
-        title: typeof p.title === 'object' ? (p.title[locale] || p.title.en) : p.title,
-      })),
-    })
+    // Normalize section: support title as string or object, and ensure quizzes/articles/pdfs are arrays
+    const getSectionTitle = (s) => {
+      if (s.title == null) return ''
+      if (typeof s.title === 'string') return s.title
+      if (typeof s.title === 'object') return s.title[locale] || s.title.en || ''
+      return ''
+    }
+    const getQuizzes = (s) => {
+      const list = s.quizzes ?? s.Quizzes ?? []
+      return Array.isArray(list) ? list : []
+    }
+    const getArticles = (s) => {
+      const list = s.articles ?? s.Articles ?? []
+      return Array.isArray(list) ? list : []
+    }
+    const getPdfs = (s) => {
+      const list = s.pdfs ?? s.Pdfs ?? []
+      return Array.isArray(list) ? list : []
+    }
+    // If section has unified "contents" array, use it to fill missing videos/quizzes/articles/pdfs
+    const getSectionContentArrays = (section) => {
+      let videos = section.videos ?? section.Videos ?? []
+      let quizzes = getQuizzes(section)
+      let articles = getArticles(section)
+      let pdfs = getPdfs(section)
+      if (Array.isArray(section.contents)) {
+        if (quizzes.length === 0) quizzes = section.contents.filter((c) => c.type === 'quiz')
+        if (articles.length === 0) articles = section.contents.filter((c) => c.type === 'article')
+        if (pdfs.length === 0) pdfs = section.contents.filter((c) => c.type === 'pdf')
+        if (videos.length === 0) videos = section.contents.filter((c) => c.type === 'video')
+      }
+      videos = Array.isArray(videos) ? videos : []
+      quizzes = Array.isArray(quizzes) ? quizzes : []
+      articles = Array.isArray(articles) ? articles : []
+      pdfs = Array.isArray(pdfs) ? pdfs : []
+      return { videos, quizzes, articles, pdfs }
+    }
 
+    const mapSection = (section) => {
+      const { videos, quizzes, articles, pdfs } = getSectionContentArrays(section)
+      return {
+        ...section,
+        title: getSectionTitle(section),
+        videos: videos.map(video => ({
+          ...video,
+          title: typeof video.title === 'object' ? (video.title[locale] || video.title.en) : (video.title ?? ''),
+          videoUrl: video.url ?? video.videoUrl,
+          duration: video.duration ?? 0,
+        })),
+        quizzes: quizzes.map(q => ({
+          ...q,
+          title: typeof q.title === 'object' ? (q.title[locale] || q.title.en) : (q.title ?? ''),
+        })),
+        articles: articles.map(a => ({
+          ...a,
+          title: typeof a.title === 'object' ? (a.title[locale] || a.title.en) : (a.title ?? ''),
+        })),
+        pdfs: pdfs.map(p => ({
+          ...p,
+          title: typeof p.title === 'object' ? (p.title[locale] || p.title.en) : (p.title ?? ''),
+        })),
+      }
+    }
+
+    const sectionsRaw = Array.isArray(course.sections) ? course.sections : []
     // Student-facing: only videos in sections (no quiz/article/pdf). Instructor/preview gets full sections.
     const sections = videosOnly
-      ? course.sections.map(section => ({
+      ? sectionsRaw.map(section => ({
           id: section.id,
-          title: section.title[locale] || section.title.en,
+          title: getSectionTitle(section),
           isFreePreview: section.isFreePreview || false,
           videos: (section.videos || []).map(video => ({
             ...video,
-            title: video.title[locale] || video.title.en,
+            title: typeof video.title === 'object' ? (video.title[locale] || video.title.en) : (video.title ?? ''),
             videoUrl: video.url ?? video.videoUrl,
             duration: video.duration ?? 0,
           })),
         }))
-      : course.sections.map(mapSection)
+      : sectionsRaw.map(mapSection)
 
     const formattedCourse = {
       ...course,

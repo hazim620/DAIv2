@@ -33,6 +33,23 @@ export async function POST(request) {
       )
     }
 
+    const raw = (mobileNumber || '').replace(/\s/g, '')
+    const has966 = raw.startsWith('+966') || raw.startsWith('966')
+    const digitsOnly = raw.replace(/^\+?966/, '').replace(/\D/g, '')
+    if (!has966 || digitsOnly.length !== 9) {
+      return Response.json(
+        { error: 'Invalid mobile. Must be +966 followed by exactly 9 digits (e.g. +966501234567).' },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      return Response.json(
+        { error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and a symbol (!@#$%...).' },
+        { status: 400 }
+      )
+    }
+
     if (!agreedToTerms) {
       return Response.json(
         { error: 'You must agree to the terms and conditions' },

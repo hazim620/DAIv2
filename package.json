@@ -11,6 +11,7 @@
     "migrate": "node scripts/migrate.mjs",
     "migrate-instructor": "node scripts/migrate-instructor-features.mjs",
     "migrate-thumbnail": "node scripts/migrate-fix-thumbnail.mjs",
+    "migrate-bank": "node scripts/migrate-bank-info.mjs",
     "test-db": "node scripts/test-connection.mjs"
   },
   "dependencies": {
@@ -25,6 +26,8 @@
     "@radix-ui/react-slot": "^1.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "country-list-translate-json": "^1.0.2",
+    "country-list-translate-json": "^1.0.2",
     "dotenv": "^16.3.1",
     "lucide-react": "^0.344.0",
     "next": "14.0.0",

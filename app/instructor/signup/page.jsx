@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Navbar } from '@/components/navbar'
 import { useLanguage } from '@/contexts/language-context'
+import { COUNTRIES, SAUDI_ARABIA } from '@/lib/instructor-form-data'
+
+const SAUDI_PHONE_PREFIX = '+966'
 
 export default function InstructorSignupPage() {
   const router = useRouter()
@@ -27,7 +30,7 @@ export default function InstructorSignupPage() {
     
     // Step 2: Personal Info
     nationality: '',
-    countryOfResidence: '',
+    countryOfResidence: SAUDI_ARABIA.labelEn,
     educationLevel: '',
     dateOfBirth: '',
     gender: '',
@@ -57,16 +60,28 @@ export default function InstructorSignupPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = locale === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Invalid email format'
     }
+    // Mobile: Saudi only — +966 then 9 digits starting with 5
+    const raw = (formData.mobileNumber || '').replace(/\s/g, '')
+    const has966 = raw.startsWith('+966') || raw.startsWith('966')
+    const digitsOnly = raw.replace(/^\+?966/, '').replace(/\D/g, '')
     if (!formData.mobileNumber.trim()) {
       newErrors.mobileNumber = locale === 'ar' ? 'رقم الجوال مطلوب' : 'Mobile number is required'
+    } else if (!has966 || digitsOnly.length !== 9) {
+      newErrors.mobileNumber = locale === 'ar'
+        ? 'رقم الجوال يجب أن يبدأ بـ +966 ويتبعه 9 أرقام (مثال: 501234567)'
+        : 'Mobile must start with +966 followed by 9 digits (e.g. 501234567)'
+    } else if (digitsOnly[0] !== '5') {
+      newErrors.mobileNumber = locale === 'ar'
+        ? 'رقم الجوال السعودي يبدأ بـ 5 (مثال: 501234567)'
+        : 'Saudi mobile number must start with 5 (e.g. 501234567)'
     }
-    
-    // Password requirements: 8+ chars, uppercase, lowercase, number
+
+    // Password: 8+ chars, uppercase, lowercase, number, symbol
     if (!formData.password) {
       newErrors.password = locale === 'ar' ? 'كلمة المرور مطلوبة' : 'Password is required'
     } else {
       if (formData.password.length < 8) {
-        newErrors.password = locale === 'ar' 
+        newErrors.password = locale === 'ar'
           ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'
           : 'Password must be at least 8 characters'
       } else if (!/[A-Z]/.test(formData.password)) {
@@ -81,6 +96,10 @@ export default function InstructorSignupPage() {
         newErrors.password = locale === 'ar'
           ? 'كلمة المرور يجب أن تحتوي على رقم'
           : 'Password must contain a number'
+      } else if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(formData.password)) {
+        newErrors.password = locale === 'ar'
+          ? 'كلمة المرور يجب أن تحتوي على رمز خاص (!@#$%...)'
+          : 'Password must contain a symbol (!@#$%...)'
       }
     }
     
@@ -100,37 +119,28 @@ export default function InstructorSignupPage() {
     if (!formData.nationality.trim()) {
       newErrors.nationality = locale === 'ar' ? 'الجنسية مطلوبة' : 'Nationality is required'
     }
-    if (!formData.countryOfResidence.trim()) {
-      newErrors.countryOfResidence = locale === 'ar' ? 'دولة الإقامة مطلوبة' : 'Country of residence is required'
-    }
+    // Country of residence is fixed to Saudi — no validation needed
     if (!formData.educationLevel.trim()) {
       newErrors.educationLevel = locale === 'ar' ? 'المستوى التعليمي مطلوب' : 'Education level is required'
     }
     if (!formData.dateOfBirth.trim()) {
       newErrors.dateOfBirth = locale === 'ar' ? 'تاريخ الميلاد مطلوب' : 'Date of birth is required'
+    } else {
+      const dob = new Date(formData.dateOfBirth)
+      const today = new Date()
+      if (Number.isNaN(dob.getTime())) {
+        newErrors.dateOfBirth = locale === 'ar' ? 'تاريخ الميلاد غير صحيح' : 'Invalid date of birth'
+      } else if (dob > today) {
+        newErrors.dateOfBirth = locale === 'ar' ? 'تاريخ الميلاد لا يمكن أن يكون في المستقبل' : 'Date of birth cannot be in the future'
+      } else {
+        const age = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000))
+        if (age < 18) {
+          newErrors.dateOfBirth = locale === 'ar' ? 'يجب أن يكون عمرك 18 سنة على الأقل' : 'You must be at least 18 years old'
+        }
+      }
     }
     if (!formData.gender.trim()) {
       newErrors.gender = locale === 'ar' ? 'الجنس مطلوب' : 'Gender is required'
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const validateStep3 = () => {
-    const newErrors = {}
-    
-    if (!formData.universityName.trim()) {
-      newErrors.universityName = locale === 'ar' ? 'اسم الجامعة مطلوب' : 'University name is required'
-    }
-    if (!formData.major.trim()) {
-      newErrors.major = locale === 'ar' ? 'التخصص مطلوب' : 'Major is required'
-    }
-    if (!formData.readinessLevel.trim()) {
-      newErrors.readinessLevel = locale === 'ar' ? 'مستوى الاستعداد مطلوب' : 'Readiness level is required'
-    }
-    if (!formData.expectedStudentsPerTerm.trim()) {
-      newErrors.expectedStudentsPerTerm = locale === 'ar' ? 'عدد الطلاب المتوقع مطلوب' : 'Expected students per term is required'
     }
     if (!formData.howDidYouHear.trim()) {
       newErrors.howDidYouHear = locale === 'ar' ? 'كيف سمعت عنا مطلوب' : 'How did you hear about us is required'
@@ -142,18 +152,9 @@ export default function InstructorSignupPage() {
 
   const handleNext = () => {
     let isValid = false
-    
-    if (currentStep === 1) {
-      isValid = validateStep1()
-    } else if (currentStep === 2) {
-      isValid = validateStep2()
-    } else if (currentStep === 3) {
-      isValid = validateStep3()
-    }
-    
-    if (isValid && currentStep < 4) {
-      setCurrentStep(currentStep + 1)
-    }
+    if (currentStep === 1) isValid = validateStep1()
+    else if (currentStep === 2) isValid = validateStep2()
+    if (isValid && currentStep < 3) setCurrentStep(currentStep + 1)
   }
 
   const handleBack = () => {
@@ -253,16 +254,31 @@ export default function InstructorSignupPage() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="mobileNumber">{locale === 'ar' ? 'رقم الجوال *' : 'Mobile Number *'}</Label>
-        <Input
-          id="mobileNumber"
-          name="mobileNumber"
-          type="tel"
-          value={formData.mobileNumber}
-          onChange={handleChange}
-          required
-          disabled={loading}
-        />
+        <div dir="ltr" className="flex rounded-md border border-gray-300 overflow-hidden">
+          <span className="inline-flex items-center px-3 bg-gray-100 text-gray-600 border-r border-gray-300 font-medium">
+            {SAUDI_PHONE_PREFIX}
+          </span>
+          <Input
+            id="mobileNumber"
+            name="mobileNumber"
+            type="tel"
+            inputMode="numeric"
+            maxLength={9}
+            placeholder="501234567"
+            className="rounded-none border-0 focus-visible:ring-0"
+            value={formData.mobileNumber.replace(/^\+966/, '').replace(/\D/g, '').slice(0, 9)}
+            onChange={(e) => {
+              let digits = e.target.value.replace(/\D/g, '').slice(0, 9)
+              if (digits.length > 0 && digits[0] !== '5') digits = '5' + digits.slice(0, 8)
+              setFormData((prev) => ({ ...prev, mobileNumber: digits ? `${SAUDI_PHONE_PREFIX}${digits}` : '' }))
+              if (errors.mobileNumber) setErrors((prev) => ({ ...prev, mobileNumber: undefined }))
+            }}
+            required
+            disabled={loading}
+          />
+        </div>
         {errors.mobileNumber && <p className="text-sm text-red-600">{errors.mobileNumber}</p>}
+        <p className="text-xs text-gray-500">{locale === 'ar' ? '9 أرقام تبدأ بـ 5 بعد +966 (مثال: 501234567)' : '9 digits starting with 5 after +966 (e.g. 501234567)'}</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">{locale === 'ar' ? 'كلمة المرور *' : 'Password *'}</Label>
@@ -277,9 +293,9 @@ export default function InstructorSignupPage() {
         />
         {errors.password && <p className="text-sm text-red-600">{errors.password}</p>}
         <p className="text-xs text-gray-500">
-          {locale === 'ar' 
-            ? '8 أحرف على الأقل، حرف كبير، حرف صغير، رقم'
-            : 'At least 8 characters, uppercase, lowercase, number'}
+          {locale === 'ar'
+            ? '8 أحرف على الأقل، حرف كبير، حرف صغير، رقم، رمز خاص (!@#$%...)'
+            : 'At least 8 characters, uppercase, lowercase, number, symbol (!@#$%...)'}
         </p>
       </div>
       <div className="space-y-2">
@@ -302,14 +318,22 @@ export default function InstructorSignupPage() {
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="nationality">{locale === 'ar' ? 'الجنسية *' : 'Nationality *'}</Label>
-        <Input
+        <select
           id="nationality"
           name="nationality"
           value={formData.nationality}
           onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md"
           required
           disabled={loading}
-        />
+        >
+          <option value="">{locale === 'ar' ? 'اختر الجنسية...' : 'Select nationality...'}</option>
+          {COUNTRIES.map((c) => (
+            <option key={c.value} value={c.labelEn}>
+              {locale === 'ar' ? c.labelAr : c.labelEn}
+            </option>
+          ))}
+        </select>
         {errors.nationality && <p className="text-sm text-red-600">{errors.nationality}</p>}
       </div>
       <div className="space-y-2">
@@ -317,12 +341,12 @@ export default function InstructorSignupPage() {
         <Input
           id="countryOfResidence"
           name="countryOfResidence"
-          value={formData.countryOfResidence}
-          onChange={handleChange}
-          required
-          disabled={loading}
+          readOnly
+          disabled
+          value={locale === 'ar' ? SAUDI_ARABIA.labelAr : SAUDI_ARABIA.labelEn}
+          className="bg-gray-100 opacity-75 cursor-not-allowed select-none"
         />
-        {errors.countryOfResidence && <p className="text-sm text-red-600">{errors.countryOfResidence}</p>}
+        <p className="text-xs text-gray-500">{locale === 'ar' ? 'يجب ان تكون دولة اقامة المدرب المملكة العربية السعودية' : 'Instructors are from Saudi Arabia only'}</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="educationLevel">{locale === 'ar' ? 'المستوى التعليمي *' : 'Education Level *'}</Label>
@@ -349,6 +373,11 @@ export default function InstructorSignupPage() {
           id="dateOfBirth"
           name="dateOfBirth"
           type="date"
+          max={(() => {
+            const d = new Date()
+            d.setFullYear(d.getFullYear() - 18)
+            return d.toISOString().slice(0, 10)
+          })()}
           value={formData.dateOfBirth}
           onChange={handleChange}
           required
@@ -370,70 +399,8 @@ export default function InstructorSignupPage() {
           <option value="">{locale === 'ar' ? 'اختر...' : 'Select...'}</option>
           <option value="male">{locale === 'ar' ? 'ذكر' : 'Male'}</option>
           <option value="female">{locale === 'ar' ? 'أنثى' : 'Female'}</option>
-          <option value="other">{locale === 'ar' ? 'آخر' : 'Other'}</option>
         </select>
         {errors.gender && <p className="text-sm text-red-600">{errors.gender}</p>}
-      </div>
-    </div>
-  )
-
-  const renderStep3 = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="universityName">{locale === 'ar' ? 'اسم الجامعة *' : 'University Name *'}</Label>
-        <Input
-          id="universityName"
-          name="universityName"
-          value={formData.universityName}
-          onChange={handleChange}
-          required
-          disabled={loading}
-        />
-        {errors.universityName && <p className="text-sm text-red-600">{errors.universityName}</p>}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="major">{locale === 'ar' ? 'التخصص *' : 'Major *'}</Label>
-        <Input
-          id="major"
-          name="major"
-          value={formData.major}
-          onChange={handleChange}
-          required
-          disabled={loading}
-        />
-        {errors.major && <p className="text-sm text-red-600">{errors.major}</p>}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="readinessLevel">{locale === 'ar' ? 'مستوى الاستعداد لإنشاء المحتوى *' : 'Readiness Level *'}</Label>
-        <select
-          id="readinessLevel"
-          name="readinessLevel"
-          value={formData.readinessLevel}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded-md"
-          required
-          disabled={loading}
-        >
-          <option value="">{locale === 'ar' ? 'اختر...' : 'Select...'}</option>
-          <option value="beginner">{locale === 'ar' ? 'مبتدئ' : 'Beginner'}</option>
-          <option value="intermediate">{locale === 'ar' ? 'متوسط' : 'Intermediate'}</option>
-          <option value="advanced">{locale === 'ar' ? 'متقدم' : 'Advanced'}</option>
-        </select>
-        {errors.readinessLevel && <p className="text-sm text-red-600">{errors.readinessLevel}</p>}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="expectedStudentsPerTerm">{locale === 'ar' ? 'عدد الطلاب المتوقع لكل فصل *' : 'Expected Students Per Term *'}</Label>
-        <Input
-          id="expectedStudentsPerTerm"
-          name="expectedStudentsPerTerm"
-          type="number"
-          min="1"
-          value={formData.expectedStudentsPerTerm}
-          onChange={handleChange}
-          required
-          disabled={loading}
-        />
-        {errors.expectedStudentsPerTerm && <p className="text-sm text-red-600">{errors.expectedStudentsPerTerm}</p>}
       </div>
       <div className="space-y-2">
         <Label htmlFor="howDidYouHear">{locale === 'ar' ? 'كيف سمعت عنا؟ *' : 'How did you hear about us? *'}</Label>
@@ -450,7 +417,7 @@ export default function InstructorSignupPage() {
     </div>
   )
 
-  const renderStep4 = () => (
+  const renderStep3 = () => (
     <div className="space-y-4">
       <div className="p-4 bg-gray-50 rounded-lg max-h-60 overflow-y-auto">
         <h3 className="font-semibold mb-2">{locale === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</h3>
@@ -490,18 +457,15 @@ export default function InstructorSignupPage() {
               {locale === 'ar' ? 'تسجيل معلم جديد' : 'Instructor Registration'}
             </CardTitle>
             <CardDescription>
-              {locale === 'ar' 
-                ? `الخطوة ${currentStep} من 4`
-                : `Step ${currentStep} of 4`}
+              {locale === 'ar'
+                ? `الخطوة ${currentStep} من 3`
+                : `Step ${currentStep} of 3`}
             </CardDescription>
-            {/* Progress indicator */}
             <div className="flex justify-center space-x-2 mt-4">
-              {[1, 2, 3, 4].map(step => (
+              {[1, 2, 3].map((step) => (
                 <div
                   key={step}
-                  className={`h-2 w-12 rounded ${
-                    step <= currentStep ? 'bg-primary' : 'bg-gray-300'
-                  }`}
+                  className={`h-2 w-12 rounded ${step <= currentStep ? 'bg-primary' : 'bg-gray-300'}`}
                 />
               ))}
             </div>
@@ -513,11 +477,10 @@ export default function InstructorSignupPage() {
               </div>
             )}
             
-            <form onSubmit={currentStep === 4 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}>
+            <form onSubmit={currentStep === 3 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}>
               {currentStep === 1 && renderStep1()}
               {currentStep === 2 && renderStep2()}
               {currentStep === 3 && renderStep3()}
-              {currentStep === 4 && renderStep4()}
               
               <div className="flex justify-between mt-6">
                 <Button
@@ -528,7 +491,7 @@ export default function InstructorSignupPage() {
                 >
                   {locale === 'ar' ? 'السابق' : 'Back'}
                 </Button>
-                {currentStep < 4 ? (
+                {currentStep < 3 ? (
                   <Button type="submit" disabled={loading}>
                     {locale === 'ar' ? 'التالي' : 'Next'}
                   </Button>

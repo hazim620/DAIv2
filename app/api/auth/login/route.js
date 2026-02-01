@@ -42,7 +42,7 @@ export async function POST(request) {
       }
       if (user.accountStatus === 'pending_admin_approval') {
         return Response.json(
-          { error: 'Your account is pending admin approval. Please wait for approval.' },
+          { error: 'Please wait for approval. Your account is under review.' },
           { status: 403 }
         )
       }
@@ -54,7 +54,10 @@ export async function POST(request) {
       }
       if (user.accountStatus !== 'approved') {
         return Response.json(
-          { error: 'Your account is not approved. Please contact support.' },
+          {
+            error: 'Your registration is under review. We will update you once it is approved.',
+            errorCode: 'account_not_approved',
+          },
           { status: 403 }
         )
       }

@@ -163,9 +163,6 @@ export default function SignupPage() {
                   </Link>
                 </div>
                 <div className="pt-2 border-t border-gray-100">
-                  <span className="text-gray-600">
-                    {locale === 'ar' ? 'تريد التدريس؟ ' : 'Want to teach? '}
-                  </span>
                   <Link href="/instructor/signup" className="text-primary hover:underline font-medium">
                     {locale === 'ar' ? 'انضم كمدرب' : 'Join as instructor'}
                   </Link>

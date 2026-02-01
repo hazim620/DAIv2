@@ -1,23 +1,13 @@
-import { requireAuth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { usersDB } from '@/lib/db'
 
 export async function GET(request) {
   try {
-    const authResult = await requireAuth(request)
-    
+    const authResult = await requireAdmin(request)
     if (authResult.error) {
       return Response.json(
         { error: authResult.error },
         { status: authResult.status }
-      )
-    }
-
-    const user = authResult.user
-    
-    if (user.role !== 'admin') {
-      return Response.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 403 }
       )
     }
 

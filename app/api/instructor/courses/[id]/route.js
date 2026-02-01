@@ -1,5 +1,12 @@
 import { requireAuth } from '@/lib/auth'
-import { coursesDB, courseStatusHistoryDB } from '@/lib/db'
+import { coursesDB, courseStatusHistoryDB, courseSubmissionsDB } from '@/lib/db'
+
+// Delete course and all related records (for draft delete)
+async function deleteCourseCascade(courseId) {
+  await courseSubmissionsDB.deleteByCourseId(courseId)
+  await courseStatusHistoryDB.deleteByCourseId(courseId)
+  await coursesDB.delete(courseId)
+}
 
 // Get a specific course (instructor's own course)
 export async function GET(request, { params }) {
@@ -43,9 +50,15 @@ export async function GET(request, { params }) {
     // Get status history
     const statusHistory = await courseStatusHistoryDB.getByCourseId(id)
 
+    // Get latest submission with admin comments (for need_modification / return to edit)
+    const submissions = await courseSubmissionsDB.getByCourseId(id)
+    const withComments = (submissions || []).filter((s) => s.adminComments && s.adminComments.length > 0)
+    const latestSubmission = withComments.length > 0 ? withComments[0] : submissions[0] || null
+
     return Response.json({ 
       course,
       statusHistory,
+      submission: latestSubmission ? { adminComments: latestSubmission.adminComments || [], status: latestSubmission.status } : null,
     })
   } catch (error) {
     console.error('Get instructor course error:', error)
@@ -168,7 +181,7 @@ export async function DELETE(request, { params }) {
       )
     }
 
-    await coursesDB.delete(id)
+    await deleteCourseCascade(id)
 
     return Response.json({ message: 'Course deleted successfully' })
   } catch (error) {

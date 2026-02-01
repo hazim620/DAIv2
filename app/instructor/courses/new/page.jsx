@@ -10,13 +10,29 @@ import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import { 
-  ArrowLeft, Save, Plus, Trash2, Eye, Upload, FileText, 
+  ArrowLeft, ArrowRight, Save, Plus, Trash2, Eye, Upload, FileText, 
   Video, FileQuestion, CheckCircle, AlertCircle, XCircle,
   File, BookOpen, ChevronRight, ChevronLeft, Play, GripVertical, Lock, Clock,
   Bold, Italic, Underline, List, ListOrdered
 } from 'lucide-react'
 import Link from 'next/link'
 import { uploadToS3Direct } from '@/lib/aws/browser-s3-upload.js'
+
+const CATEGORY_LABELS = {
+  general: { ar: 'عام', en: 'General' },
+  'data-science': { ar: 'علوم البيانات', en: 'Data Science' },
+  ai: { ar: 'الذكاء الاصطناعي', en: 'AI' },
+  programming: { ar: 'البرمجة', en: 'Programming' },
+  business: { ar: 'الأعمال', en: 'Business' },
+  design: { ar: 'التصميم', en: 'Design' },
+  marketing: { ar: 'التسويق', en: 'Marketing' },
+  language: { ar: 'اللغات', en: 'Language' },
+}
+const LEVEL_LABELS = {
+  beginner: { ar: 'مبتدئ', en: 'Beginner' },
+  intermediate: { ar: 'متوسط', en: 'Intermediate' },
+  advanced: { ar: 'متقدم', en: 'Advanced' },
+}
 
 function ArticleRichEditor({ articleId, sectionId, content, locale, updateContent }) {
   const editorRef = useRef(null)
@@ -42,7 +58,7 @@ function ArticleRichEditor({ articleId, sectionId, content, locale, updateConten
       id={`article-editor-${articleId}`}
       contentEditable
       suppressContentEditableWarning
-      className="w-full min-h-[120px] px-3 py-2 border rounded-b-md rounded-t-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+      className="w-full min-h-[120px] px-3 py-2 border rounded-b-md rounded-t-none bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
       style={{ fontSize: '16px' }}
       data-placeholder={locale === 'ar' ? 'محتوى المقال...' : 'Article content...'}
       onBlur={syncContent}
@@ -51,7 +67,7 @@ function ArticleRichEditor({ articleId, sectionId, content, locale, updateConten
   )
 }
 
-export default function NewCoursePage({ initialCourseId = null, initialFormData = null, initialStep = 1 }) {
+export default function NewCoursePage({ initialCourseId = null, initialFormData = null, initialStep = 1, initialCourseStatus = null, initialAdminComments = [] }) {
   const router = useRouter()
   const { user } = useAuth()
   const { locale, t } = useLanguage()
@@ -59,16 +75,18 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [courseId, setCourseId] = useState(null)
+  const isLocked = initialCourseStatus === 'submitted_for_review' || initialCourseStatus === 'approved' || initialCourseStatus === 'rejected'
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [expandedSectionId, setExpandedSectionId] = useState(null)
   const [dragOverSectionIndex, setDragOverSectionIndex] = useState(null)
+  const [dragOverContentKey, setDragOverContentKey] = useState(null)
   const [formData, setFormData] = useState({
     title: '',
     shortDescription: '',
     description: '',
     category: 'general',
     level: 'beginner',
-    language: 'en',
+    language: 'ar',
     price: 0,
     thumbnail: '',
     sections: [],
@@ -147,18 +165,19 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       order: v.order !== undefined ? v.order : orderIndex++ 
     }))
     const quizzes = (section.quizzes || []).map((q, idx) => {
-      // Ensure type is always set to 'quiz'
+      // Ensure type is always set to 'quiz'; never overwrite existing title with default
       const quizOrder = q.order !== undefined ? q.order : orderIndex++
       orderIndex = Math.max(orderIndex, quizOrder + 1)
+      const hasTitle = q.title != null && typeof q.title === 'object' && (q.title.en != null || q.title.ar != null)
       return {
         ...q,
-        id: q.id || `quiz-${Date.now()}-${idx}`, // Ensure ID exists
-        type: 'quiz', // Always ensure type is 'quiz'
+        id: q.id || `quiz-${Date.now()}-${idx}`,
+        type: 'quiz',
         order: quizOrder,
-        questions: Array.isArray(q.questions) ? q.questions : [], // Ensure questions array is always initialized
+        questions: Array.isArray(q.questions) ? q.questions : [],
         passingScore: q.passingScore !== undefined ? q.passingScore : 70,
         maxAttempts: q.maxAttempts !== undefined ? q.maxAttempts : 3,
-        title: q.title || { en: 'New Quiz', ar: 'اختبار جديد' }
+        title: hasTitle ? { en: q.title.en ?? '', ar: q.title.ar ?? '' } : (q.title ?? { en: 'New Quiz', ar: 'اختبار جديد' })
       }
     })
     const articles = (section.articles || []).map((a, idx) => ({ 
@@ -296,7 +315,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="category">
-            {locale === 'ar' ? 'الفئة' : 'Category'}
+            {locale === 'ar' ? 'فئات الدورات' : 'Course Category'}
           </Label>
           <select
             id="category"
@@ -304,12 +323,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1"
           >
-            <option value="general">General</option>
-            <option value="data-science">Data Science</option>
-            <option value="ai">AI</option>
-            <option value="programming">Programming</option>
-            <option value="business">Business</option>
-            <option value="design">Design</option>
+            <option value="general">{locale === 'ar' ? 'عام' : 'General'}</option>
+            <option value="data-science">{locale === 'ar' ? 'علوم البيانات' : 'Data Science'}</option>
+            <option value="ai">{locale === 'ar' ? 'الذكاء الاصطناعي' : 'AI'}</option>
+            <option value="programming">{locale === 'ar' ? 'البرمجة' : 'Programming'}</option>
+            <option value="business">{locale === 'ar' ? 'الأعمال' : 'Business'}</option>
+            <option value="design">{locale === 'ar' ? 'التصميم' : 'Design'}</option>
+            <option value="marketing">{locale === 'ar' ? 'التسويق' : 'Marketing'}</option>
+            <option value="language">{locale === 'ar' ? 'اللغات' : 'Language'}</option>
           </select>
         </div>
 
@@ -333,7 +354,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="price">
-            {locale === 'ar' ? 'السعر' : 'Price'} ($)
+            {locale === 'ar' ? 'السعر' : 'Price'} (ر.س)
           </Label>
           <Input
             id="price"
@@ -345,20 +366,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
           />
         </div>
 
-        <div>
-          <Label htmlFor="language">
-            {locale === 'ar' ? 'اللغة' : 'Language'}
-          </Label>
-          <select
-            id="language"
-            value={formData.language}
-            onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1"
-          >
-            <option value="en">English</option>
-            <option value="ar">Arabic</option>
-          </select>
-        </div>
       </div>
 
       <div>
@@ -539,11 +546,10 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                   <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <Input
-                          value={typeof section.title === 'object' ? (section.title[locale] || section.title.en || '') : (section.title || '')}
+                          value={typeof section.title === 'object' && section.title != null ? (section.title[locale] ?? section.title.en ?? '') : (section.title ?? '')}
                           onChange={(e) => {
-                            const currentTitle = typeof section.title === 'object' ? section.title : { en: section.title || '', ar: section.title || '' }
-                            const newTitle = { ...currentTitle }
-                            newTitle[locale] = e.target.value
+                            const currentTitle = typeof section.title === 'object' && section.title != null ? section.title : { en: section.title ?? '', ar: section.title ?? '' }
+                            const newTitle = { ...currentTitle, [locale]: e.target.value }
                             updateSection(section.id, { title: newTitle })
                           }}
                           placeholder={locale === 'ar' ? 'عنوان القسم' : 'Section title'}
@@ -673,9 +679,15 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       const allContents = getAllContents(section || {})
       const maxOrder = allContents.length > 0 ? Math.max(...allContents.map(c => c.order || 0)) : -1
 
+      const defaultTitles = {
+        video: { en: 'New video', ar: 'فيديو جديد' },
+        quiz: { en: 'New quiz', ar: 'كويز جديد' },
+        article: { en: 'New article', ar: 'مقال جديد' },
+        pdf: { en: 'New file', ar: 'ملف جديد' },
+      }
       const newContent = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        title: { en: `New ${type}`, ar: `${type} جديد` },
+        title: defaultTitles[type] || { en: `New ${type}`, ar: 'عنصر جديد' },
         type: type,
         order: maxOrder + 1,
       }
@@ -815,6 +827,22 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
           mimeType: file.type || '',
           status: 'ready',
         })
+        // Get video duration from browser
+        const videoEl = document.createElement('video')
+        videoEl.preload = 'metadata'
+        videoEl.onloadedmetadata = () => {
+          const durationSeconds = Math.round(videoEl.duration || 0)
+          if (durationSeconds > 0) {
+            updateContent(sectionId, contentId, 'video', { duration: durationSeconds })
+          }
+          videoEl.src = ''
+          videoEl.load()
+        }
+        videoEl.onerror = () => {
+          videoEl.src = ''
+          videoEl.load()
+        }
+        videoEl.src = publicUrl
       } catch (err) {
         console.error('Video upload error:', err)
         updateContent(sectionId, contentId, 'video', { status: 'error' })
@@ -825,6 +853,12 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
     const handleFileUpload = async (sectionId, contentId, file) => {
       if (!file) return
 
+      const allowedTypes = ['.pdf', '.ppt', '.pptx']
+      const ext = (file.name || '').toLowerCase().replace(/.*\./, '.')
+      if (!allowedTypes.includes(ext)) {
+        alert(locale === 'ar' ? 'الملف يجب أن يكون PDF أو PowerPoint' : 'File must be PDF or PowerPoint')
+        return
+      }
       const maxSize = 100 * 1024 * 1024 // 100MB
       if (file.size > maxSize) {
         alert(locale === 'ar' ? 'حجم الملف كبير جداً (الحد الأقصى 100MB)' : 'File too large (max 100MB)')
@@ -889,7 +923,21 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
             </CardContent>
           </Card>
         ) : (
-          (formData.sections || []).map((section, sIdx) => {
+          <>
+            {(() => {
+              const totalSec = (formData.sections || []).reduce((sum, section) => sum + (section.videos || []).reduce((s, v) => s + (Number(v.duration) || 0), 0), 0)
+              const h = Math.floor(totalSec / 3600)
+              const m = Math.floor((totalSec % 3600) / 60)
+              const durStr = h > 0 ? `${h} ${locale === 'ar' ? 'س' : 'h'} ${m} ${locale === 'ar' ? 'د' : 'm'}` : `${m} ${locale === 'ar' ? 'دقيقة' : 'min'}`
+              return (
+                <div className="flex items-center gap-2 mb-4 px-1 text-sm text-gray-600">
+                  <Clock className="h-4 w-4" />
+                  <span>{locale === 'ar' ? 'مدة الدورة:' : 'Course duration:'}</span>
+                  <span className="font-medium">{durStr}</span>
+                </div>
+              )
+            })()}
+          {(formData.sections || []).map((section, sIdx) => {
             const sectionTitle = typeof section.title === 'object'
               ? section.title[locale] || section.title.en
               : section.title
@@ -958,7 +1006,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                           onClick={() => setExpandedSectionId(prev => (prev === section.id ? null : section.id))}
                           title={isExpanded ? (locale === 'ar' ? 'إخفاء' : 'Collapse') : (locale === 'ar' ? 'إظهار' : 'Expand')}
                         >
-                          <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          {locale === 'ar' ? (
+                            <ChevronLeft className={`h-4 w-4 transition-transform ${isExpanded ? '-rotate-90' : ''}`} />
+                          ) : (
+                            <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -998,7 +1050,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                       onClick={() => addContent(section.id, 'pdf')}
                     >
                       <File className="h-4 w-4 mr-2" />
-                      {locale === 'ar' ? 'إضافة ملف' : 'Add File'}
+                      {locale === 'ar' ? 'ملف جديد' : 'New File'}
                     </Button>
                   </div>
 
@@ -1012,42 +1064,55 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                       </CardContent>
                     </Card>
                   ) : (
-                    getAllContents(section).map((content, contentIdx) => {
+                    <div
+                      className="space-y-3"
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        e.dataTransfer.dropEffect = 'move'
+                        const el = document.elementFromPoint(e.clientX, e.clientY)
+                        const card = el?.closest?.('[data-content-index]')
+                        const idx = card != null ? parseInt(card.getAttribute('data-content-index'), 10) : null
+                        setDragOverContentKey(Number.isInteger(idx) ? `${section.id}-${idx}` : null)
+                      }}
+                      onDragLeave={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget)) setDragOverContentKey(null)
+                      }}
+                      onDrop={(e) => {
+                        setDragOverContentKey(null)
+                        e.preventDefault()
+                        e.stopPropagation()
+                        try {
+                          const data = e.dataTransfer.getData('text/plain')
+                          const payload = JSON.parse(data)
+                          if (!payload || payload.s !== section.id || !Number.isInteger(payload.i)) return
+                          const fromIdx = payload.i
+                          const el = document.elementFromPoint(e.clientX, e.clientY)
+                          const card = el?.closest?.('[data-content-index]')
+                          const targetIdx = card != null ? parseInt(card.getAttribute('data-content-index'), 10) : null
+                          if (targetIdx == null || targetIdx === fromIdx) return
+                          reorderContent(section.id, fromIdx, targetIdx)
+                        } catch (_) {}
+                      }}
+                    >
+                    {getAllContents(section).map((content, contentIdx) => {
                     const contentNumber = `${sIdx + 1}.${contentIdx + 1}`
-                    
-                    // Video Content
                     if (content.type === 'video') {
                       const video = content
                       return (
-                        <Card 
-                          key={video.id} 
-                          className="bg-gray-50"
+                        <Card
+                          key={video.id}
+                          data-content-index={contentIdx}
+                          className={`bg-gray-50 border-2 transition-[border-color] ${dragOverContentKey === `${section.id}-${contentIdx}` ? 'border-primary ring-2 ring-primary/30' : 'border-transparent'}`}
                           draggable
                           onDragStart={(e) => {
                             e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
+                            e.dataTransfer.effectAllowed = 'move'
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
                             e.currentTarget.classList.remove('opacity-50')
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.add('border-2', 'border-blue-400')
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            try {
-                              const data = e.dataTransfer.getData('text/plain')
-                              const payload = data ? JSON.parse(data) : null
-                              if (payload && payload.s === section.id && Number.isInteger(payload.i)) {
-                                const sourceIndex = payload.i
-                                if (sourceIndex !== contentIdx) reorderContent(section.id, sourceIndex, contentIdx)
-                              }
-                            } catch (_) {}
+                            setDragOverContentKey(null)
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1058,11 +1123,10 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   <span className="text-sm font-semibold text-gray-600">{contentNumber}</span>
                                   <Video className="h-5 w-5 text-blue-600" />
                                   <Input
-                                    value={typeof video.title === 'object' ? (video.title[locale] || video.title.en || '') : (video.title || '')}
+                                    value={typeof video.title === 'object' && video.title != null ? (video.title[locale] ?? video.title.en ?? '') : (video.title ?? '')}
                                     onChange={(e) => {
-                                      const currentTitle = typeof video.title === 'object' ? video.title : { en: video.title || '', ar: video.title || '' }
-                                      const newTitle = { ...currentTitle }
-                                      newTitle[locale] = e.target.value
+                                      const currentTitle = typeof video.title === 'object' && video.title != null ? video.title : { en: video.title ?? '', ar: video.title ?? '' }
+                                      const newTitle = { ...currentTitle, [locale]: e.target.value }
                                       updateContent(section.id, video.id, 'video', { title: newTitle })
                                     }}
                                     placeholder={locale === 'ar' ? 'عنوان الفيديو *' : 'Video title *'}
@@ -1175,68 +1239,34 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                         </Card>
                       )
                     }
-
-                    // Quiz Content
                     if (content.type === 'quiz') {
-                      // Get the latest quiz from formData to ensure we have current state
                       const currentSection = formData.sections.find(s => s.id === section.id)
                       const currentQuiz = currentSection?.quizzes?.find(q => q.id === content.id) || content
-                      
-                      // Ensure quiz has all required fields initialized
-                      const quiz = { 
+                      const quiz = {
                         ...currentQuiz,
                         id: currentQuiz.id || content.id || `quiz-${Date.now()}`,
                         type: 'quiz',
                         title: currentQuiz.title || content.title || { en: 'New Quiz', ar: 'اختبار جديد' },
-                        questions: Array.isArray(currentQuiz?.questions) 
-                          ? currentQuiz.questions 
-                          : (Array.isArray(content.questions) 
-                            ? content.questions 
-                            : []),
-                        passingScore: currentQuiz?.passingScore !== undefined 
-                          ? currentQuiz.passingScore 
-                          : (content.passingScore !== undefined ? content.passingScore : 70),
-                        maxAttempts: currentQuiz?.maxAttempts !== undefined 
-                          ? currentQuiz.maxAttempts 
-                          : (content.maxAttempts !== undefined ? content.maxAttempts : 3)
+                        questions: Array.isArray(currentQuiz?.questions) ? currentQuiz.questions : (Array.isArray(content.questions) ? content.questions : []),
+                        passingScore: currentQuiz?.passingScore !== undefined ? currentQuiz.passingScore : (content.passingScore !== undefined ? content.passingScore : 70),
+                        maxAttempts: currentQuiz?.maxAttempts !== undefined ? currentQuiz.maxAttempts : (content.maxAttempts !== undefined ? content.maxAttempts : 3),
                       }
-                      
-                      // Get the latest quiz from state to ensure fresh data
-                      const quizFromState = formData.sections
-                        .find(s => s.id === section.id)
-                        ?.quizzes?.find(q => q.id === content.id)
-                      
+                      const quizFromState = formData.sections.find(s => s.id === section.id)?.quizzes?.find(q => q.id === content.id)
                       const finalQuiz = quizFromState || quiz
-                      
                       return (
-                        <Card 
-                          key={quiz.id} 
-                          className="bg-gray-50"
+                        <Card
+                          key={finalQuiz.id}
+                          data-content-index={contentIdx}
+                          className={`bg-gray-50 border-2 transition-[border-color] ${dragOverContentKey === `${section.id}-${contentIdx}` ? 'border-primary ring-2 ring-primary/30' : 'border-transparent'}`}
                           draggable
                           onDragStart={(e) => {
                             e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
+                            e.dataTransfer.effectAllowed = 'move'
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
                             e.currentTarget.classList.remove('opacity-50')
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.add('border-2', 'border-blue-400')
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            try {
-                              const data = e.dataTransfer.getData('text/plain')
-                              const payload = data ? JSON.parse(data) : null
-                              if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
-                                reorderContent(section.id, payload.i, contentIdx)
-                              }
-                            } catch (_) {}
+                            setDragOverContentKey(null)
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1247,26 +1277,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   <span className="text-sm font-semibold text-gray-600">{contentNumber}</span>
                                   <FileQuestion className="h-5 w-5 text-purple-600" />
                                   <Input
-                                    value={typeof finalQuiz.title === 'object' ? (finalQuiz.title[locale] || finalQuiz.title.en || '') : (finalQuiz.title || '')}
+                                    value={typeof finalQuiz.title === 'object' && finalQuiz.title != null ? (finalQuiz.title[locale] ?? finalQuiz.title.en ?? '') : (finalQuiz.title ?? '')}
                                     onChange={(e) => {
-                                      const currentTitle = typeof finalQuiz.title === 'object' ? finalQuiz.title : { en: finalQuiz.title || '', ar: finalQuiz.title || '' }
-                                      const newTitle = { ...currentTitle }
-                                      newTitle[locale] = e.target.value
-                                      setFormData(prev => {
-                                        const newSections = prev.sections.map(s => {
-                                          if (s.id === section.id) {
-                                              const newQuizzes = (s.quizzes || []).map(q => {
-                                                if (q.id === finalQuiz.id) {
-                                                  return { ...q, title: newTitle }
-                                                }
-                                                return q
-                                              })
-                                            return { ...s, quizzes: newQuizzes }
-                                          }
-                                          return s
-                                        })
-                                        return { ...prev, sections: newSections }
-                                      })
+                                      const currentTitle = typeof finalQuiz.title === 'object' && finalQuiz.title != null ? finalQuiz.title : { en: finalQuiz.title ?? '', ar: finalQuiz.title ?? '' }
+                                      const newTitle = { ...currentTitle, [locale]: e.target.value }
+                                      updateContent(section.id, finalQuiz.id, 'quiz', { title: newTitle })
                                     }}
                                     placeholder={locale === 'ar' ? 'عنوان الاختبار' : 'Quiz title'}
                                     className="font-semibold"
@@ -1309,35 +1324,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                               const newQuizzes = (s.quizzes || []).map(q => {
                                                 if (q.id === finalQuiz.id) {
                                                   return { ...q, passingScore: parseInt(e.target.value) || 70 }
-                                                }
-                                                return q
-                                              })
-                                              return { ...s, quizzes: newQuizzes }
-                                            }
-                                            return s
-                                          })
-                                          return { ...prev, sections: newSections }
-                                        })
-                                      }}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`quiz-max-attempts-${finalQuiz.id}`} className="text-sm">
-                                      {locale === 'ar' ? 'عدد المحاولات' : 'Max Attempts'}
-                                    </Label>
-                                    <Input
-                                      id={`quiz-max-attempts-${finalQuiz.id}`}
-                                      type="number"
-                                      min="1"
-                                      value={finalQuiz.maxAttempts || 3}
-                                      onChange={(e) => {
-                                        setFormData(prev => {
-                                          const newSections = prev.sections.map(s => {
-                                            if (s.id === section.id) {
-                                              const newQuizzes = (s.quizzes || []).map(q => {
-                                                if (q.id === finalQuiz.id) {
-                                                  return { ...q, maxAttempts: parseInt(e.target.value) || 3 }
                                                 }
                                                 return q
                                               })
@@ -1418,7 +1404,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
 
                                                             if (nextType === 'true_false') {
                                                               current.type = 'true_false'
-                                                              current.options = ['True', 'False']
+                                                              current.options = ['صح', 'خطأ']
                                                               current.correctAnswer = Math.min(Math.max(parseInt(current.correctAnswer ?? 0) || 0, 0), 1)
                                                               delete current.correctAnswers
                                                             } else if (nextType === 'multiple_select') {
@@ -1755,7 +1741,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                         )}
                                         {question.type === 'true_false' && (
                                           <div className="space-y-2">
-                                            {['True', 'False'].map((option, optIdx) => (
+                                            {(Array.isArray(question.options) ? question.options : ['صح', 'خطأ']).map((option, optIdx) => (
                                               <div key={optIdx} className="flex items-center gap-2">
                                                 <input
                                                   type="radio"
@@ -1783,7 +1769,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                                     })
                                                   }}
                                                 />
-                                                <span className="text-sm">{option}</span>
+                                                <span className="text-sm">{option === 'True' ? 'صح' : option === 'False' ? 'خطأ' : option}</span>
                                               </div>
                                             ))}
                                           </div>
@@ -1801,39 +1787,22 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                         </Card>
                       )
                     }
-
-                    // Article Content
                     if (content.type === 'article') {
                       const article = content
                       return (
-                        <Card 
-                          key={article.id} 
-                          className="bg-gray-50"
+                        <Card
+                          key={article.id}
+                          data-content-index={contentIdx}
+                          className={`bg-gray-50 border-2 transition-[border-color] ${dragOverContentKey === `${section.id}-${contentIdx}` ? 'border-primary ring-2 ring-primary/30' : 'border-transparent'}`}
                           draggable
                           onDragStart={(e) => {
                             e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
+                            e.dataTransfer.effectAllowed = 'move'
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
                             e.currentTarget.classList.remove('opacity-50')
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.add('border-2', 'border-blue-400')
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            try {
-                              const data = e.dataTransfer.getData('text/plain')
-                              const payload = data ? JSON.parse(data) : null
-                              if (payload && payload.s === section.id && Number.isInteger(payload.i) && payload.i !== contentIdx) {
-                                reorderContent(section.id, payload.i, contentIdx)
-                              }
-                            } catch (_) {}
+                            setDragOverContentKey(null)
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1877,7 +1846,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                             </div>
                             <div className="space-y-2">
                               <Label className="text-sm">{locale === 'ar' ? 'تنسيق النص' : 'Format'}</Label>
-                              <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-gray-50 border-b-0 rounded-b-none">
+                              <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-white border-b-0 rounded-b-none">
                                 <button
                                   type="button"
                                   title="Bold"
@@ -1948,42 +1917,22 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                         </Card>
                       )
                     }
-
-                    // PDF Content
                     if (content.type === 'pdf') {
                       const pdf = content
                       return (
-                        <Card 
-                          key={pdf.id} 
-                          className="bg-gray-50"
+                        <Card
+                          key={pdf.id}
+                          data-content-index={contentIdx}
+                          className={`bg-gray-50 border-2 transition-[border-color] ${dragOverContentKey === `${section.id}-${contentIdx}` ? 'border-primary ring-2 ring-primary/30' : 'border-transparent'}`}
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', [section.id, pdf.id, contentIdx].join('|'))
+                            e.dataTransfer.setData('text/plain', JSON.stringify({ s: section.id, i: contentIdx }))
+                            e.dataTransfer.effectAllowed = 'move'
                             e.currentTarget.classList.add('opacity-50')
                           }}
                           onDragEnd={(e) => {
                             e.currentTarget.classList.remove('opacity-50')
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.add('border-2', 'border-blue-400')
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            e.currentTarget.classList.remove('border-2', 'border-blue-400')
-                            const data = e.dataTransfer.getData('text/plain')
-                            if (data) {
-                              const parts = data.split('|')
-                              if (parts.length >= 3 && parts[0] === section.id) {
-                                const sourceIndex = parseInt(parts[2], 10)
-                                if (!Number.isNaN(sourceIndex) && sourceIndex !== contentIdx) {
-                                  reorderContent(section.id, sourceIndex, contentIdx)
-                                }
-                              }
-                            }
+                            setDragOverContentKey(null)
                           }}
                         >
                           <CardContent className="pt-4">
@@ -1994,11 +1943,10 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                   <span className="text-sm font-semibold text-gray-600">{contentNumber}</span>
                                   <File className="h-5 w-5 text-red-600" />
                                   <Input
-                                    value={typeof pdf.title === 'object' ? (pdf.title[locale] || pdf.title.en || '') : (pdf.title || '')}
+                                    value={typeof pdf.title === 'object' && pdf.title != null ? (pdf.title[locale] ?? pdf.title.en ?? '') : (pdf.title ?? '')}
                                     onChange={(e) => {
-                                      const currentTitle = typeof pdf.title === 'object' ? pdf.title : { en: pdf.title || '', ar: pdf.title || '' }
-                                      const newTitle = { ...currentTitle }
-                                      newTitle[locale] = e.target.value
+                                      const currentTitle = typeof pdf.title === 'object' && pdf.title != null ? pdf.title : { en: pdf.title ?? '', ar: pdf.title ?? '' }
+                                      const newTitle = { ...currentTitle, [locale]: e.target.value }
                                       updateContent(section.id, pdf.id, 'pdf', { title: newTitle })
                                     }}
                                     placeholder={locale === 'ar' ? 'عنوان الملف *' : 'File title *'}
@@ -2073,14 +2021,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                                       {locale === 'ar' ? 'اسحب وأفلت ملف هنا أو انقر للرفع' : 'Drag and drop file here or click to upload'}
                                     </p>
                                     <p className="text-xs text-gray-500 mt-1">
-                                      {locale === 'ar' ? 'أي ملف حتى 100MB' : 'Any file up to 100MB'}
+                                      {locale === 'ar' ? 'PDF أو PowerPoint حتى 100MB' : 'PDF or PowerPoint up to 100MB'}
                                     </p>
                                   </div>
                                 )}
                                 <input
                                   id={`pdf-upload-${pdf.id}`}
                                   type="file"
-                                  accept="*/*"
+                                  accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                                   className="hidden"
                                   onChange={(e) => {
                                     const file = e.target.files[0]
@@ -2093,10 +2041,9 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                         </Card>
                       )
                     }
-
-                    // Fallback for unknown content types (should not happen)
                     return null
-                    })
+                    })}
+                    </div>
                   )}
                   
 
@@ -2106,7 +2053,8 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
 
               </div>
             )
-          })
+          })}
+        </>
         )}
 
         {/* Add section line at the very bottom */}
@@ -2149,25 +2097,6 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       errors.push(locale === 'ar' ? 'يجب إضافة قسم واحد على الأقل' : 'At least one section is required')
     }
     
-    let hasVideo = false
-    formData.sections.forEach((section, sIdx) => {
-      const allContents = getAllContents(section)
-      const videos = allContents.filter(c => c.type === 'video')
-      if (videos.length === 0) {
-        errors.push(
-          locale === 'ar' 
-            ? `القسم ${sIdx + 1} يجب أن يحتوي على فيديو واحد على الأقل`
-            : `Section ${sIdx + 1} must contain at least one video`
-        )
-      } else {
-        hasVideo = true
-      }
-    })
-    
-    if (!hasVideo) {
-      errors.push(locale === 'ar' ? 'يجب إضافة فيديو واحد على الأقل' : 'At least one video is required')
-    }
-    
     setValidationErrors(errors)
     return errors.length === 0
   }
@@ -2187,7 +2116,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       })
 
       if (res.ok) {
-        alert(locale === 'ar' ? 'تم إرسال الدورة للمراجعة' : 'Course submitted for review')
+        alert(locale === 'ar' ? 'الدورة تحت المراجعة الآن. سيتم إبلاغك في حال القبول أو إعادة للتعديل قريباً.' : 'Course is under review. You will be notified when it is approved or if changes are requested.')
         router.push('/instructor')
       } else {
         const error = await res.json()
@@ -2220,6 +2149,8 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
       (sum, section) => sum + (section.videos || []).filter(v => v.isFree).length,
       0
     )
+    const totalQuizzes = sections.reduce((sum, section) => sum + ((section.quizzes || []).length), 0)
+    const totalArticles = sections.reduce((sum, section) => sum + ((section.articles || []).length), 0)
     const totalDurationSeconds = sections.reduce((sum, section) => {
       const sectionSeconds = (section.videos || []).reduce((s, v) => s + (Number(v.duration) || 0), 0)
       return sum + sectionSeconds
@@ -2279,11 +2210,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                   </div>
                   <div>
                     <span className="font-medium">{locale === 'ar' ? 'الفئة: ' : 'Category: '}</span>
-                    <span>{formData.category}</span>
+                    <span>{(CATEGORY_LABELS[formData.category] || { ar: formData.category, en: formData.category })[locale] || formData.category}</span>
                   </div>
                   <div>
                     <span className="font-medium">{locale === 'ar' ? 'المستوى: ' : 'Level: '}</span>
-                    <span>{formData.level}</span>
+                    <span>{(LEVEL_LABELS[formData.level] || { ar: formData.level, en: formData.level })[locale] || formData.level}</span>
                   </div>
                   <div>
                     <span className="font-medium">{totalVideos}</span> <span>{locale === 'ar' ? 'فيديو' : 'videos'}</span>
@@ -2383,7 +2314,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
           <div className="lg:col-span-1">
             <Card className="lg:sticky lg:top-4">
               <CardHeader>
-                <CardTitle className="text-2xl">${formData.price || 0}</CardTitle>
+                <CardTitle className="text-2xl">{formData.price != null ? `${formData.price} ر.س` : '0 ر.س'}</CardTitle>
                 <CardDescription>
                   {locale === 'ar' ? 'سعر الدورة' : 'Course Price'}
                 </CardDescription>
@@ -2401,6 +2332,14 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">{locale === 'ar' ? 'المدة' : 'Duration'}</span>
                     <span className="font-medium">{formatDuration(totalDurationSeconds)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{locale === 'ar' ? 'الاختبارات' : 'Quizzes'}</span>
+                    <span className="font-medium">{totalQuizzes}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{locale === 'ar' ? 'المقالات' : 'Articles'}</span>
+                    <span className="font-medium">{totalArticles}</span>
                   </div>
                 </div>
                 <div className="pt-4 border-t">
@@ -2453,14 +2392,10 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
           if (res.ok) {
             const data = await res.json()
             setCourseId(data.course.id)
-            setCurrentStep(2)
-          } else {
-            const error = await res.json()
-            alert(error.error || 'Failed to create course')
+            setShowCourseCreatedModal(true)
           }
         } catch (error) {
           console.error('Error creating course:', error)
-          alert('Failed to create course')
         } finally {
           setSaving(false)
         }
@@ -2481,6 +2416,62 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    if (currentStep === 1) {
+      if (!formData.title || !formData.description || !formData.thumbnail) {
+        alert(locale === 'ar' ? 'يرجى إكمال الحقول المطلوبة (العنوان، الوصف، الصورة)' : 'Please complete required fields (title, description, thumbnail)')
+        return
+      }
+      if (!courseId) {
+        setSaving(true)
+        try {
+          const res = await fetch('/api/instructor/courses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              title: { en: formData.title, ar: formData.title },
+              description: { en: formData.description, ar: formData.description },
+              shortDescription: formData.shortDescription,
+              category: formData.category,
+              level: formData.level,
+              language: formData.language,
+              price: formData.price,
+              thumbnail: formData.thumbnail,
+              sections: [],
+            }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            setCourseId(data.course.id)
+            alert(locale === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
+          } else {
+            alert(locale === 'ar' ? 'فشل حفظ المسودة' : 'Draft save failed')
+          }
+        } catch (e) {
+          alert(locale === 'ar' ? 'فشل حفظ المسودة' : 'Draft save failed')
+        } finally {
+          setSaving(false)
+        }
+      } else {
+        alert(locale === 'ar' ? 'تم حفظ المسودة مسبقاً' : 'Draft already saved')
+      }
+      return
+    }
+    if (currentStep === 2 || currentStep === 3) {
+      if (!courseId) return
+      setSaving(true)
+      try {
+        await saveCourse()
+        alert(locale === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
+      } catch (e) {
+        alert(locale === 'ar' ? 'فشل الحفظ' : 'Save failed')
+      } finally {
+        setSaving(false)
+      }
     }
   }
 
@@ -2539,7 +2530,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
         <div className="container mx-auto px-4 max-w-6xl">
           <Link href="/instructor">
             <Button variant="ghost" className="mb-6">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              {locale === 'ar' ? (
+                <ArrowRight className="h-4 w-4 ml-2" />
+              ) : (
+                <ArrowLeft className="h-4 w-4 mr-2" />
+              )}
               {locale === 'ar' ? 'العودة' : 'Back'}
             </Button>
           </Link>
@@ -2579,6 +2574,26 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
             </div>
           </div>
 
+          {isLocked ? (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <AlertCircle className="h-12 w-12 text-amber-600 mx-auto" />
+                  <h2 className="text-xl font-semibold text-amber-800">
+                    {locale === 'ar' ? 'الدورة تحت المراجعة' : 'Course under review'}
+                  </h2>
+                  <p className="text-gray-600">
+                    {locale === 'ar'
+                      ? 'لا يمكن تعديل الدورة أثناء المراجعة. سيتم إعلامك عند انتهاء المراجعة.'
+                      : 'Editing is locked while the course is under review. You will be notified when the review is complete.'}
+                  </p>
+                  <Link href="/instructor">
+                    <Button variant="outline">{locale === 'ar' ? 'العودة إلى لوحة التحكم' : 'Back to Dashboard'}</Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle>
@@ -2591,21 +2606,46 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {initialAdminComments && initialAdminComments.length > 0 && (
+                <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                  <h3 className="font-semibold text-amber-900 mb-2">
+                    {locale === 'ar' ? 'تعليقات المدير (مطلوب تعديلات)' : 'Admin comments (modifications requested)'}
+                  </h3>
+                  <ul className="space-y-2 text-sm text-amber-800">
+                    {initialAdminComments.map((c, i) => (
+                      <li key={c.id || i} className="flex gap-2">
+                        <span className="text-amber-600 shrink-0">{locale === 'ar' ? '•' : '•'}</span>
+                        <span>{typeof c === 'object' && c.text ? c.text : String(c)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-amber-700 mt-2">
+                    {locale === 'ar' ? 'قم بالتعديلات ثم اضغط إرسال للمراجعة' : 'Make the changes and click Submit for Review'}
+                  </p>
+                </div>
+              )}
               {currentStep === 1 && Step1()}
               {currentStep === 2 && Step3()}
               {currentStep === 3 && Step4()}
 
               {/* Navigation Buttons */}
-              <div className="flex justify-between mt-8 pt-6 border-t">
+              <div className="flex justify-between mt-8 pt-6 border-t flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={handlePrevious}
                   disabled={currentStep === 1}
                 >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  {locale === 'ar' ? (
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4 mr-2" />
+                  )}
                   {locale === 'ar' ? 'السابق' : 'Previous'}
                 </Button>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
+                    {locale === 'ar' ? 'حفظ كمسودة' : 'Save as draft'}
+                  </Button>
                   {currentStep < totalSteps ? (
                     <Button onClick={handleNext} disabled={saving || loading}>
                       {saving ? (
@@ -2613,7 +2653,11 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
                       ) : (
                         <>
                           {locale === 'ar' ? 'التالي' : 'Next'}
-                          <ChevronRight className="h-4 w-4 ml-2" />
+                          {locale === 'ar' ? (
+                            <ChevronLeft className="h-4 w-4 mr-2" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 ml-2" />
+                          )}
                         </>
                       )}
                     </Button>
@@ -2628,6 +2672,7 @@ export default function NewCoursePage({ initialCourseId = null, initialFormData 
               </div>
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
 

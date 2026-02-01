@@ -173,7 +173,7 @@ export default function CoursesPage() {
                         <p className="font-medium">{course.instructor}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">${course.price}</p>
+                        <p className="text-2xl font-bold text-primary">{course.price != null ? `${course.price} ر.س` : '0 ر.س'}</p>
                       </div>
                     </div>
                     <Link href={`/courses/${course.id}`}>
