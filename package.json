@@ -10,6 +10,8 @@
     "lint": "next lint",
     "migrate": "node scripts/migrate.mjs",
     "migrate-instructor": "node scripts/migrate-instructor-features.mjs",
+    "migrate:dev": "node scripts/migrate.mjs && node scripts/migrate-instructor-features.mjs",
+    "seed:dev": "node scripts/seed-dev-users.mjs",
     "migrate-thumbnail": "node scripts/migrate-fix-thumbnail.mjs",
     "migrate-bank": "node scripts/migrate-bank-info.mjs",
     "test-db": "node scripts/test-connection.mjs"

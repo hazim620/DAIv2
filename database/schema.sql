@@ -1,6 +1,4 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+-- UUID extension: run database/bootstrap.sql once as superuser if you need uuid-ossp.
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(255) PRIMARY KEY,

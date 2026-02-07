@@ -61,3 +61,66 @@
     accent-color: hsl(var(--ring));
   }
 }
+
+/* Hide scrollbar for carousel (keep scroll behavior) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Global search bar animation (right → center) – smooth transition */
+.animate-search-from-trigger {
+  left: var(--start-x, 50%);
+  top: var(--start-y, 50%);
+  transform: translate(-50%, -50%) scale(0.92);
+  transition:
+    left var(--duration, 520ms) var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    top var(--duration, 520ms) var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--duration, 520ms) var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity calc(var(--duration, 520ms) * 0.6) var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.animate-search-to-center {
+  left: 50%;
+  top: 22%;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Hide browser’s native search clear (X) so only our clear button shows */
+.global-search-input::-webkit-search-cancel-button,
+.global-search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.global-search-input::-moz-search-cancel-button {
+  display: none;
+}
+
+/* Search overlay: scrollbar on the right, styled, with margin from content */
+.search-overlay-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  padding-inline-end: 1rem;
+}
+.search-overlay-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.search-overlay-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  margin-block: 4px;
+}
+.search-overlay-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+}
+.search-overlay-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+.search-overlay-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.08);
+}

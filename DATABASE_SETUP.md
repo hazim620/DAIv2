@@ -21,7 +21,33 @@ This will install `pg` (PostgreSQL client) and `dotenv` (for environment variabl
 
 ## Step 2: Configure Environment Variables
 
-### For Local Development
+### Local dev DB (Docker)
+
+To use a local Postgres with schemas created automatically:
+
+1. Start the dev database (runs `schema.sql` and instructor migration on **first** start only):
+   ```bash
+   docker compose up -d
+   ```
+2. Copy the dev env example and use it as your `.env`:
+   ```bash
+   cp .env.dev.example .env
+   ```
+3. Config is in `config/database.dev.yml` (host, port, db name, user, password, schema files).
+
+**If tables are missing** (e.g. init didn’t run or you didn’t use `down -v`), create them from the host:
+```bash
+# .env must have DB_HOST=localhost, DB_NAME=dai_dev, DB_USER=dai_dev_user, DB_PASSWORD=dai_dev_password, DB_SSL=false
+npm run migrate:dev
+```
+
+To reset the DB and re-run init scripts, remove the volume and start again:
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+### For Local Development (RDS)
 
 Create a `.env` file in the root directory:
 

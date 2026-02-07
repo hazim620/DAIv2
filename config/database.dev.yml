@@ -1,0 +1,20 @@
+# Dev database configuration (used by docker-compose and local .env.dev)
+# Use this for local development; production uses RDS and .env
+
+database:
+  host: localhost
+  port: 5432
+  name: dai_dev
+  user: dai_dev_user
+  password: dai_dev_password
+  ssl: false
+
+# Schema files run in order when the Postgres container is first created
+# (mounted into /docker-entrypoint-initdb.d/)
+schema_files:
+  - database/schema.sql
+  - database/migration_instructor_features.sql
+
+# Optional: run these manually after first start if needed
+# npm run migrate-thumbnail
+# npm run migrate-bank
