@@ -15,6 +15,15 @@ copy .env.prod.example .env
 
 ---
 
+## CloudFront distributions
+
+| Env    | Distribution ID   | Domain                          |
+|--------|-------------------|----------------------------------|
+| dev    | E2GT92XJ9KT7M7    | drf3m9s2aw24c.cloudfront.net     |
+| preprod| EF7TG1IDOIW22     | d2pqexip67u30k.cloudfront.net    |
+
+---
+
 ## Data You Need to Provide
 
 Replace the placeholders in each example with your actual values.

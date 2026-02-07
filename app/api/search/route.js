@@ -1,6 +1,8 @@
 import { coursesDB } from '@/lib/db'
 import { formatCourseDuration } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 const cache = new Map()
 const CACHE_TTL_MS = 60_000
 const MIN_LATENCY_MS = 500

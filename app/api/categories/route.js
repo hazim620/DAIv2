@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Mock categories (replace with DB when you have a categories table)
 const MOCK_CATEGORIES = [
   {
